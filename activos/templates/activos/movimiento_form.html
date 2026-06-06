@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Registrar Movimiento — Brisas de Pacandé{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-7">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-archive me-2"></i>Registrar movimiento</h5>
+        <a href="{% url 'activos:dashboard' %}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-arrow-left me-1"></i>Volver
+        </a>
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Fecha</label>
+              {{ form.fecha }}
+              {% if form.fecha.errors %}<div class="invalid-feedback d-block">{{ form.fecha.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Momento</label>
+              {{ form.momento }}
+              {% if form.momento.errors %}<div class="invalid-feedback d-block">{{ form.momento.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Tipo de activo</label>
+              {{ form.tipo_activo }}
+              {% if form.tipo_activo.errors %}<div class="invalid-feedback d-block">{{ form.tipo_activo.errors|join:", " }}</div>{% endif %}
+            </div>
+          </div>
+
+          <hr class="my-3">
+          <p class="fw-semibold mb-2">Conteo por estado</p>
+
+          <div class="row g-3 mb-3">
+            <!-- Campo A: llenos (BOT) / sin uso (CAN) -->
+            <div class="col-6 col-md-3">
+              <label class="form-label small fw-semibold text-primary" id="lbl-estado-a">En planta — llenos</label>
+              {{ form.cantidad_en_planta_lleno }}
+              {% if form.cantidad_en_planta_lleno.errors %}<div class="invalid-feedback d-block">{{ form.cantidad_en_planta_lleno.errors|join:", " }}</div>{% endif %}
+            </div>
+
+            <!-- Campo B: vacíos (solo BOT) — oculto para canastillas -->
+            <div class="col-6 col-md-3" id="wrap-estado-b">
+              <label class="form-label small fw-semibold text-secondary">En planta — vacíos</label>
+              {{ form.cantidad_en_planta_vacio }}
+              {% if form.cantidad_en_planta_vacio.errors %}<div class="invalid-feedback d-block">{{ form.cantidad_en_planta_vacio.errors|join:", " }}</div>{% endif %}
+            </div>
+
+            <!-- Campo C: en clientes (BOT) / en uso (CAN) -->
+            <div class="col-6 col-md-3">
+              <label class="form-label small fw-semibold text-warning" id="lbl-estado-c">En poder de clientes</label>
+              {{ form.cantidad_en_clientes }}
+              {% if form.cantidad_en_clientes.errors %}<div class="invalid-feedback d-block">{{ form.cantidad_en_clientes.errors|join:", " }}</div>{% endif %}
+            </div>
+
+            <!-- Campo D: dado de baja (ambos) -->
+            <div class="col-6 col-md-3">
+              <label class="form-label small fw-semibold text-danger">Dados de baja</label>
+              {{ form.cantidad_baja }}
+              {% if form.cantidad_baja.errors %}<div class="invalid-feedback d-block">{{ form.cantidad_baja.errors|join:", " }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div id="total-preview" class="alert alert-light py-2 text-end mb-3">
+            Total: <strong id="total-val">0</strong>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Observaciones</label>
+            {{ form.observaciones }}
+          </div>
+
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="d-flex justify-content-end gap-2">
+            <a href="{% url 'activos:dashboard' %}" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>Guardar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const tipoSelect = document.getElementById('id_tipo_activo');
+const wrapB     = document.getElementById('wrap-estado-b');
+const inputB    = document.getElementById('id_cantidad_en_planta_vacio');
+const lblA      = document.getElementById('lbl-estado-a');
+const lblC      = document.getElementById('lbl-estado-c');
+
+const LABELS = {
+  BOT: { a: 'En planta — llenos', c: 'En poder de clientes' },
+  CAN: { a: 'Sin uso',            c: 'En uso' },
+};
+
+function adaptarCampos() {
+  const tipo = tipoSelect.value;
+  const esBotellon = tipo === 'BOT';
+
+  wrapB.style.display = esBotellon ? '' : 'none';
+  if (!esBotellon) inputB.value = 0;
+
+  const lbl = LABELS[tipo] || LABELS.BOT;
+  lblA.textContent = lbl.a;
+  lblC.textContent = lbl.c;
+
+  actualizarTotal();
+}
+
+const cantIds = [
+  'id_cantidad_en_planta_lleno',
+  'id_cantidad_en_planta_vacio',
+  'id_cantidad_en_clientes',
+  'id_cantidad_baja',
+];
+
+function actualizarTotal() {
+  const tipo = tipoSelect.value;
+  const total = cantIds.reduce((sum, id) => {
+    if (id === 'id_cantidad_en_planta_vacio' && tipo === 'CAN') return sum;
+    return sum + (parseInt(document.getElementById(id)?.value) || 0);
+  }, 0);
+  document.getElementById('total-val').textContent = total;
+}
+
+tipoSelect.addEventListener('change', adaptarCampos);
+cantIds.forEach(id => document.getElementById(id)?.addEventListener('input', actualizarTotal));
+
+// Aplicar al cargar la página
+adaptarCampos();
+</script>
+{% endblock %}

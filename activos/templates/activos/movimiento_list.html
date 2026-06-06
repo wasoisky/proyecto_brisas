@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Historial de Movimientos — Brisas de Pacandé{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h4 class="mb-0"><i class="bi bi-clock-history me-2"></i>Historial de movimientos</h4>
+  <div class="d-flex gap-2">
+    <a href="{% url 'activos:dashboard' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-speedometer2 me-1"></i>Dashboard
+    </a>
+    <a href="{% url 'activos:movimiento_create' %}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg me-1"></i>Nuevo
+    </a>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small mb-1">Fecha</label>
+        <input type="date" name="fecha" class="form-control form-control-sm" value="{{ request.GET.fecha }}">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Tipo</label>
+        <select name="tipo_activo" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for val, label in tipos %}
+          <option value="{{ val }}" {% if request.GET.tipo_activo == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Momento</label>
+        <select name="momento" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for val, label in momentos %}
+          <option value="{{ val }}" {% if request.GET.momento == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-secondary btn-sm">Filtrar</button>
+        <a href="{% url 'activos:movimiento_list' %}" class="btn btn-outline-secondary btn-sm ms-1">Limpiar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Fecha</th>
+          <th>Momento</th>
+          <th>Tipo</th>
+          <th class="text-end">Conteos</th>
+          <th class="text-end">Baja</th>
+          <th class="text-end">Total</th>
+          <th>Registrado por</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in movimientos %}
+        <tr>
+          <td>{{ m.fecha }}</td>
+          <td><span class="badge {% if m.momento == 'INI' %}bg-info text-dark{% else %}bg-dark{% endif %}">{{ m.get_momento_display }}</span></td>
+          <td>{{ m.get_tipo_activo_display }}</td>
+          <td class="text-end small">
+            {% if m.tipo_activo == 'BOT' %}
+              <span class="text-primary" title="Llenos">{{ m.cantidad_en_planta_lleno }}ll</span> /
+              <span class="text-secondary" title="Vacíos">{{ m.cantidad_en_planta_vacio }}va</span> /
+              <span class="text-warning" title="Clientes">{{ m.cantidad_en_clientes }}cli</span>
+            {% else %}
+              <span class="text-success" title="Sin uso">{{ m.cantidad_en_planta_lleno }} s/u</span> /
+              <span class="text-warning" title="En uso">{{ m.cantidad_en_clientes }} uso</span>
+            {% endif %}
+          </td>
+          <td class="text-end text-danger">{{ m.cantidad_baja }}</td>
+          <td class="text-end fw-semibold">{{ m.total }}</td>
+          <td class="small">{{ m.registrado_por.get_full_name|default:m.registrado_por.username }}</td>
+          <td class="text-end">
+            <a href="{% url 'activos:movimiento_detail' m.pk %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-eye"></i></a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-4">No hay movimientos registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

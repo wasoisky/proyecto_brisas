@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Planillas — Brisas de Pacandé{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h4 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>Planillas</h4>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small mb-1">Fecha</label>
+        <input type="date" name="fecha" class="form-control form-control-sm" value="{{ request.GET.fecha }}">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Estado</label>
+        <select name="estado" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for val, label in estados %}
+          <option value="{{ val }}" {% if request.GET.estado == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-secondary btn-sm">Filtrar</button>
+        <a href="{% url 'distribucion:planilla_list' %}" class="btn btn-outline-secondary btn-sm ms-1">Limpiar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Fecha</th>
+          <th>Distribuidor</th>
+          <th class="text-center">Estado</th>
+          <th class="text-end">Entregas</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in planillas %}
+        <tr>
+          <td>{{ p.fecha }}</td>
+          <td>{{ p.distribuidor.get_full_name|default:p.distribuidor.username }}</td>
+          <td class="text-center">
+            {% if p.estado == 'ABR' %}<span class="badge bg-primary">Abierta</span>
+            {% elif p.estado == 'PEN' %}<span class="badge bg-warning text-dark">Pendiente validación</span>
+            {% else %}<span class="badge bg-success">Validada</span>{% endif %}
+          </td>
+          <td class="text-end">{{ p.entregas.count }}</td>
+          <td class="text-end">
+            <a href="{% url 'distribucion:planilla_detail' p.pk %}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-eye"></i>
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center text-muted py-4">No hay planillas registradas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

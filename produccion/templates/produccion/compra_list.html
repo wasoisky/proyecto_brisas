@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Compras de Insumos — Brisas de Pacandé{% endblock %}
+{% block nav_produccion %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h4 class="mb-0"><i class="bi bi-cart-check me-2"></i>Compras de Insumos</h4>
+  <a href="{% url 'produccion:compra_create' %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>Nueva compra
+  </a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small mb-1">Insumo</label>
+        <select name="insumo" class="form-select form-select-sm" style="min-width:180px">
+          <option value="">Todos</option>
+          {% for ins in insumos %}
+          <option value="{{ ins.pk }}" {% if request.GET.insumo == ins.pk|stringformat:"s" %}selected{% endif %}>
+            {{ ins.nombre }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Desde</label>
+        <input type="date" name="desde" class="form-control form-control-sm" value="{{ request.GET.desde }}">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Hasta</label>
+        <input type="date" name="hasta" class="form-control form-control-sm" value="{{ request.GET.hasta }}">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-secondary btn-sm">Filtrar</button>
+        <a href="{% url 'produccion:compra_list' %}" class="btn btn-outline-secondary btn-sm ms-1">Limpiar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Fecha</th>
+          <th>Insumo</th>
+          <th class="text-end">Cantidad</th>
+          <th>Unidad</th>
+          <th class="text-end">Precio unit.</th>
+          <th class="text-end">Total</th>
+          <th>Proveedor</th>
+          <th>Factura</th>
+          <th>Registrado por</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in compras %}
+        <tr>
+          <td>{{ c.fecha }}</td>
+          <td>{{ c.insumo.nombre }}</td>
+          <td class="text-end fw-semibold">{{ c.cantidad }}</td>
+          <td class="text-muted small">{{ c.insumo.unidad_medida }}</td>
+          <td class="text-end">${{ c.precio_unitario }}</td>
+          <td class="text-end fw-semibold">${{ c.total }}</td>
+          <td>{{ c.proveedor|default:"—" }}</td>
+          <td><code>{{ c.factura|default:"—" }}</code></td>
+          <td>{{ c.registrado_por.get_full_name|default:c.registrado_por.username }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="9" class="text-center text-muted py-4">No hay compras registradas.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if compras %}
+      <tfoot class="table-light fw-semibold">
+        <tr>
+          <td colspan="5" class="text-end">Total filtrado:</td>
+          <td class="text-end">${{ total_general }}</td>
+          <td colspan="3"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}

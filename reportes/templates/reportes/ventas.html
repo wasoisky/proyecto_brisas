@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Ventas Consolidadas — Brisas de Pacandé{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0"><i class="bi bi-graph-up me-2"></i>Ventas consolidadas</h4>
+  <a href="{% url 'reportes:ventas_excel' %}?fecha_desde={{ fecha_desde }}&fecha_hasta={{ fecha_hasta }}"
+     class="btn btn-success btn-sm">
+    <i class="bi bi-file-earmark-excel me-1"></i>Exportar Excel
+  </a>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small mb-1">Desde</label>
+        {{ form.fecha_desde }}
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Hasta</label>
+        {{ form.fecha_hasta }}
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Distribuidor</label>
+        {{ form.distribuidor }}
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-secondary btn-sm">Aplicar</button>
+        <a href="{% url 'reportes:ventas' %}" class="btn btn-outline-secondary btn-sm ms-1">Limpiar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="alert alert-light py-2 text-end mb-3">
+  <strong>Total del período:</strong>
+  <span class="fs-5 fw-bold text-success ms-2">${{ gran_total|floatformat:0 }}</span>
+</div>
+
+<div class="row g-3">
+  <!-- Por producto -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header fw-semibold">Por producto</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Producto</th>
+              <th class="text-end">Unidades</th>
+              <th class="text-end">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for nombre, datos in por_producto %}
+            <tr>
+              <td>{{ nombre }}</td>
+              <td class="text-end">{{ datos.cantidad }}</td>
+              <td class="text-end fw-semibold">${{ datos.total|floatformat:0 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center text-muted py-3">Sin datos.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Por distribuidor -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header fw-semibold">Por distribuidor</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Distribuidor</th>
+              <th class="text-end">Entregas</th>
+              <th class="text-end">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for nombre, datos in por_dist %}
+            <tr>
+              <td>{{ nombre }}</td>
+              <td class="text-end">{{ datos.entregas }}</td>
+              <td class="text-end fw-semibold">${{ datos.total|floatformat:0 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center text-muted py-3">Sin datos.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Por modalidad de pago -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header fw-semibold">Por modalidad de pago</div>
+      <div class="card-body">
+        <div class="row g-3 text-center">
+          <div class="col-4">
+            <div class="border rounded p-3">
+              <div class="fs-4 fw-bold text-success">${{ pago_totales.EFE|floatformat:0 }}</div>
+              <div class="small text-muted">Efectivo</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="border rounded p-3">
+              <div class="fs-4 fw-bold text-info">${{ pago_totales.NEQ|floatformat:0 }}</div>
+              <div class="small text-muted">Nequi</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="border rounded p-3">
+              <div class="fs-4 fw-bold text-warning">${{ pago_totales.CRE|floatformat:0 }}</div>
+              <div class="small text-muted">Crédito</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

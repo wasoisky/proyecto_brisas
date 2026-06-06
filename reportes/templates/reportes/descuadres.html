@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Descuadres — Brisas de Pacandé{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h4 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Descuadres</h4>
+</div>
+
+<div class="row g-3">
+  <!-- Formulario nuevo descuadre -->
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header fw-semibold">Registrar descuadre</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'reportes:descuadre_create' %}" novalidate>
+          {% csrf_token %}
+          {% for field in form %}
+          <div class="mb-2">
+            <label class="form-label small fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+            {% if field.errors %}<div class="invalid-feedback d-block">{{ field.errors|join:", " }}</div>{% endif %}
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn btn-danger btn-sm w-100 mt-2">
+            <i class="bi bi-plus-lg me-1"></i>Registrar
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista de descuadres -->
+  <div class="col-md-8">
+    <div class="card mb-3">
+      <div class="card-body py-2">
+        <form method="get" class="row g-2 align-items-end">
+          <div class="col-auto">
+            <select name="tipo" class="form-select form-select-sm">
+              <option value="">Todos los tipos</option>
+              {% for val, label in tipos %}
+              <option value="{{ val }}" {% if request.GET.tipo == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-auto">
+            <select name="resuelto" class="form-select form-select-sm">
+              <option value="">Todos</option>
+              <option value="0" {% if request.GET.resuelto == '0' %}selected{% endif %}>Sin resolver</option>
+              <option value="1" {% if request.GET.resuelto == '1' %}selected{% endif %}>Resueltos</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-secondary btn-sm">Filtrar</button>
+            <a href="{% url 'reportes:descuadres' %}" class="btn btn-outline-secondary btn-sm ms-1">Limpiar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Severidad</th>
+              <th class="text-end">Diferencia</th>
+              <th>Descripción</th>
+              <th class="text-center">Estado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in descuadres %}
+            <tr class="{% if not d.resuelto and d.severidad == 'CRI' %}table-danger{% elif not d.resuelto and d.severidad == 'MOD' %}table-warning{% endif %}">
+              <td>{{ d.fecha }}</td>
+              <td class="small">{{ d.get_tipo_display }}</td>
+              <td>
+                {% if d.severidad == 'CRI' %}<span class="badge bg-danger">Crítico</span>
+                {% elif d.severidad == 'MOD' %}<span class="badge bg-warning text-dark">Moderado</span>
+                {% else %}<span class="badge bg-secondary">Leve</span>{% endif %}
+              </td>
+              <td class="text-end">{{ d.diferencia }}</td>
+              <td class="small">{{ d.descripcion|truncatechars:60 }}</td>
+              <td class="text-center">
+                {% if d.resuelto %}<span class="badge bg-success">Resuelto</span>
+                {% else %}<span class="badge bg-danger">Pendiente</span>{% endif %}
+              </td>
+              <td>
+                {% if not d.resuelto %}
+                <form method="post" action="{% url 'reportes:descuadre_resolver' d.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-outline-success btn-sm" title="Marcar resuelto">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center text-muted py-4">No hay descuadres registrados.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

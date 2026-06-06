@@ -1,0 +1,217 @@
+{% with p=request.path rol=user.rol %}
+
+{% if user.is_superuser or rol == 'ADMIN' or rol == 'PROD' %}
+<div class="sidebar-section">Operaciones</div>
+<ul class="nav flex-column gap-1 px-1">
+
+  <!-- Producción -->
+  <li>
+    <div class="nav-parent-row">
+      <a class="nav-link flex-grow-1 {% if '/produccion/' in p %}active{% endif %}"
+         href="{% url 'produccion:producto_list' %}">
+        <i class="bi bi-box-seam"></i> Producción
+      </a>
+      <button class="nav-chevron {% if '/produccion/' in p %}rotated{% endif %}"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#sub-produccion"
+              aria-expanded="{% if '/produccion/' in p %}true{% else %}false{% endif %}">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+    </div>
+    <div class="collapse {% if '/produccion/' in p %}show{% endif %}" id="sub-produccion">
+      <ul class="nav flex-column sub-nav mt-1 gap-1">
+        <li>
+          <a class="nav-link {% if '/produccion/productos' in p %}active{% endif %}"
+             href="{% url 'produccion:producto_list' %}">
+            <i class="bi bi-grid-3x2-gap"></i> Productos
+          </a>
+        </li>
+        <li>
+          <a class="nav-link {% if '/produccion/insumos' in p %}active{% endif %}"
+             href="{% url 'produccion:insumo_list' %}">
+            <i class="bi bi-clipboard2-pulse"></i> Insumos
+          </a>
+        </li>
+        <li>
+          <a class="nav-link {% if '/produccion/registro' in p %}active{% endif %}"
+             href="{% url 'produccion:produccion_list' %}">
+            <i class="bi bi-journal-text"></i> Registro diario
+          </a>
+        </li>
+        <li>
+          <a class="nav-link {% if '/produccion/compras' in p %}active{% endif %}"
+             href="{% url 'produccion:compra_list' %}">
+            <i class="bi bi-cart-check"></i> Compras
+          </a>
+        </li>
+      </ul>
+    </div>
+  </li>
+
+  <!-- Activos -->
+  <li>
+    <div class="nav-parent-row">
+      <a class="nav-link flex-grow-1 {% if '/activos/' in p %}active{% endif %}"
+         href="{% url 'activos:dashboard' %}">
+        <i class="bi bi-archive"></i> Activos
+      </a>
+      <button class="nav-chevron {% if '/activos/' in p %}rotated{% endif %}"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#sub-activos"
+              aria-expanded="{% if '/activos/' in p %}true{% else %}false{% endif %}">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+    </div>
+    <div class="collapse {% if '/activos/' in p %}show{% endif %}" id="sub-activos">
+      <ul class="nav flex-column sub-nav mt-1 gap-1">
+        <li>
+          <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' and '/activos/' in p %}active{% endif %}"
+             href="{% url 'activos:dashboard' %}">
+            <i class="bi bi-speedometer2"></i> Estado actual
+          </a>
+        </li>
+        <li>
+          <a class="nav-link {% if '/activos/movimientos' in p %}active{% endif %}"
+             href="{% url 'activos:movimiento_list' %}">
+            <i class="bi bi-clock-history"></i> Historial
+          </a>
+        </li>
+      </ul>
+    </div>
+  </li>
+
+</ul>
+{% endif %}
+
+{% if user.is_superuser or rol == 'ADMIN' or rol == 'DIST' %}
+<div class="sidebar-section">Ventas</div>
+<ul class="nav flex-column gap-1 px-1">
+
+  <!-- Distribución -->
+  <li>
+    <div class="nav-parent-row">
+      <a class="nav-link flex-grow-1 {% if '/distribucion/' in p %}active{% endif %}"
+         href="{% if user.is_superuser or rol == 'ADMIN' %}{% url 'distribucion:planilla_list' %}{% else %}{% url 'distribucion:ruta' %}{% endif %}">
+        <i class="bi bi-truck"></i> Distribución
+      </a>
+      <button class="nav-chevron {% if '/distribucion/' in p %}rotated{% endif %}"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#sub-distribucion"
+              aria-expanded="{% if '/distribucion/' in p %}true{% else %}false{% endif %}">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+    </div>
+    <div class="collapse {% if '/distribucion/' in p %}show{% endif %}" id="sub-distribucion">
+      <ul class="nav flex-column sub-nav mt-1 gap-1">
+        {% if user.is_superuser or rol == 'ADMIN' or rol == 'DIST' %}
+        <li>
+          <a class="nav-link {% if '/distribucion/ruta' in p %}active{% endif %}"
+             href="{% url 'distribucion:ruta' %}">
+            <i class="bi bi-map"></i> Mi ruta
+          </a>
+        </li>
+        {% endif %}
+        {% if user.is_superuser or rol == 'ADMIN' %}
+        <li>
+          <a class="nav-link {% if '/distribucion/planillas' in p %}active{% endif %}"
+             href="{% url 'distribucion:planilla_list' %}">
+            <i class="bi bi-clipboard-check"></i> Planillas
+          </a>
+        </li>
+        <li>
+          <a class="nav-link {% if '/distribucion/clientes' in p %}active{% endif %}"
+             href="{% url 'distribucion:cliente_list' %}">
+            <i class="bi bi-people"></i> Clientes
+          </a>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+  </li>
+
+</ul>
+{% endif %}
+
+{% if user.is_superuser or rol == 'ADMIN' %}
+<div class="sidebar-section">Administración</div>
+<ul class="nav flex-column gap-1 px-1">
+
+  <!-- Reportes -->
+  <li>
+    <div class="nav-parent-row">
+      <a class="nav-link flex-grow-1 {% if '/reportes/' in p %}active{% endif %}"
+         href="{% url 'reportes:dashboard' %}">
+        <i class="bi bi-bar-chart-line"></i> Reportes
+      </a>
+      <button class="nav-chevron {% if '/reportes/' in p %}rotated{% endif %}"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#sub-reportes"
+              aria-expanded="{% if '/reportes/' in p %}true{% else %}false{% endif %}">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+    </div>
+    <div class="collapse {% if '/reportes/' in p %}show{% endif %}" id="sub-reportes">
+      <ul class="nav flex-column sub-nav mt-1 gap-1">
+        <li>
+          <a class="nav-link {% if '/reportes/ventas' in p %}active{% endif %}"
+             href="{% url 'reportes:ventas' %}">
+            <i class="bi bi-graph-up"></i> Ventas
+          </a>
+        </li>
+        <li>
+          <a class="nav-link {% if '/reportes/creditos' in p %}active{% endif %}"
+             href="{% url 'reportes:creditos' %}">
+            <i class="bi bi-credit-card"></i> Créditos
+          </a>
+        </li>
+        <li>
+          <a class="nav-link {% if '/reportes/descuadres' in p %}active{% endif %}"
+             href="{% url 'reportes:descuadres' %}">
+            <i class="bi bi-exclamation-triangle"></i> Descuadres
+          </a>
+        </li>
+      </ul>
+    </div>
+  </li>
+
+  <!-- Usuarios -->
+  <li>
+    <div class="nav-parent-row">
+      <a class="nav-link flex-grow-1 {% if '/usuarios/' in p %}active{% endif %}"
+         href="{% url 'usuarios:lista' %}">
+        <i class="bi bi-people"></i> Usuarios
+      </a>
+      <button class="nav-chevron {% if '/usuarios/' in p %}rotated{% endif %}"
+              type="button"
+              data-bs-toggle="collapse"
+              data-bs-target="#sub-usuarios"
+              aria-expanded="{% if '/usuarios/' in p %}true{% else %}false{% endif %}">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+    </div>
+    <div class="collapse {% if '/usuarios/' in p %}show{% endif %}" id="sub-usuarios">
+      <ul class="nav flex-column sub-nav mt-1 gap-1">
+        <li>
+          <a class="nav-link {% if request.resolver_match.url_name == 'lista' %}active{% endif %}"
+             href="{% url 'usuarios:lista' %}">
+            <i class="bi bi-person-lines-fill"></i> Gestión
+          </a>
+        </li>
+        <li>
+          <a class="nav-link {% if '/usuarios/accesos' in p %}active{% endif %}"
+             href="{% url 'usuarios:accesos' %}">
+            <i class="bi bi-clock-history"></i> Registro de accesos
+          </a>
+        </li>
+      </ul>
+    </div>
+  </li>
+
+</ul>
+{% endif %}
+
+{% endwith %}

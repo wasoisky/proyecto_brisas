@@ -1,0 +1,313 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iniciar sesión — Brisas de Pacandé</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --brand-dark:  #1B2870;
+      --brand-mid:   #1A8DC8;
+      --brand-teal:  #3DC0D8;
+      --brand-pale:  #e8f4fb;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; font-family: 'Inter', system-ui, sans-serif; }
+
+    /* ── Layout split ── */
+    .split-wrap { min-height: 100vh; display: flex; }
+
+    /* ── Panel izquierdo (marca) — solo escritorio ── */
+    .brand-panel {
+      background: linear-gradient(160deg, var(--brand-dark) 0%, #1E5FA8 55%, var(--brand-mid) 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 3rem 2.5rem;
+      position: relative; overflow: hidden; text-align: center;
+    }
+    .brand-panel::before {
+      content: ''; position: absolute;
+      width: 300px; height: 300px; border-radius: 50%;
+      background: rgba(61,192,216,.1);
+      top: -80px; right: -80px;
+    }
+    .brand-panel::after {
+      content: ''; position: absolute;
+      width: 200px; height: 200px; border-radius: 50%;
+      background: rgba(255,255,255,.05);
+      bottom: -60px; left: -50px;
+    }
+    .brand-logo-wrap {
+      position: relative; z-index: 1;
+      background: rgba(255,255,255,.12);
+      border-radius: 50%; padding: 1.25rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,.25);
+      border: 2px solid rgba(255,255,255,.2);
+      margin-bottom: 1.5rem;
+    }
+    .brand-logo-wrap img {
+      width: 140px; height: 140px;
+      object-fit: contain; border-radius: 50%; display: block;
+    }
+    .brand-name {
+      color: #fff; font-size: 1.5rem; font-weight: 800;
+      letter-spacing: .3px; margin-bottom: .35rem;
+      position: relative; z-index: 1;
+    }
+    .brand-tagline {
+      color: rgba(255,255,255,.78); font-size: .9rem;
+      margin-bottom: 2rem; position: relative; z-index: 1;
+    }
+    .brand-pills {
+      display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center;
+      position: relative; z-index: 1; margin-bottom: 2.5rem;
+    }
+    .brand-pill {
+      background: rgba(255,255,255,.13);
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: 2rem; padding: .28rem .85rem;
+      font-size: .75rem; color: rgba(255,255,255,.92);
+    }
+    .brand-footer-txt {
+      position: absolute; bottom: 1.1rem;
+      font-size: .7rem; color: rgba(255,255,255,.45);
+      z-index: 1;
+    }
+
+    /* ── Panel derecho (formulario) ── */
+    .form-panel {
+      background: linear-gradient(160deg, #e8f4fb 0%, #f0f8ff 100%);
+      display: flex; align-items: center; justify-content: center;
+      padding: 2.5rem 1.5rem;
+    }
+    .login-box { width: 100%; max-width: 400px; }
+
+    /* Logo centrado arriba del card (móvil y escritorio) */
+    .mobile-brand { text-align: center; margin-bottom: 1.75rem; }
+    .mobile-brand-logo {
+      width: 88px; height: 88px; object-fit: contain; border-radius: 50%;
+      border: 3px solid rgba(27,40,112,.15);
+      box-shadow: 0 4px 16px rgba(27,40,112,.12);
+    }
+    .mobile-brand-name {
+      font-size: 1.1rem; font-weight: 800;
+      color: var(--brand-dark); margin-top: .75rem; margin-bottom: .1rem;
+    }
+    .mobile-brand-tagline {
+      font-size: .8rem; color: #64748b;
+    }
+
+    /* Card del formulario */
+    .login-card {
+      background: #fff;
+      border-radius: 1rem;
+      box-shadow: 0 4px 24px rgba(27,40,112,.1), 0 1px 4px rgba(27,40,112,.06);
+      border: 1px solid rgba(27,40,112,.07);
+      padding: 2rem 1.75rem;
+    }
+    .login-card h4 {
+      font-size: 1.3rem; font-weight: 700;
+      color: var(--brand-dark); margin-bottom: .2rem;
+    }
+    .login-card .subtitle {
+      font-size: .83rem; color: #64748b; margin-bottom: 1.5rem;
+    }
+
+    /* Labels de campo */
+    .field-label {
+      display: block;
+      font-size: .7rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .6px;
+      color: #64748b; margin-bottom: .35rem;
+    }
+
+    /* Inputs */
+    .input-wrap { position: relative; margin-bottom: 1.1rem; }
+    .input-icon {
+      position: absolute; left: .875rem; top: 50%; transform: translateY(-50%);
+      color: #94a3b8; font-size: .95rem; pointer-events: none;
+    }
+    .input-wrap input {
+      width: 100%; padding: .7rem .875rem .7rem 2.5rem;
+      border: 1.5px solid #e2e8f0; border-radius: .5rem;
+      font-size: .875rem; color: #1e293b;
+      font-family: 'Inter', system-ui, sans-serif;
+      outline: none; transition: border-color .18s, box-shadow .18s;
+      background: #fff;
+    }
+    .input-wrap input:focus {
+      border-color: var(--brand-mid);
+      box-shadow: 0 0 0 3px rgba(26,141,200,.13);
+    }
+    .input-wrap input::placeholder { color: #b0bec5; }
+    /* Botón ojo (contraseña) */
+    .eye-btn {
+      position: absolute; right: .75rem; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      color: #94a3b8; font-size: 1rem; padding: .2rem;
+      transition: color .15s;
+    }
+    .eye-btn:hover { color: var(--brand-mid); }
+    .input-wrap .has-eye input { padding-right: 2.5rem; }
+
+    /* Alerta de error */
+    .login-alert {
+      background: #fef2f2; color: #991b1b;
+      border-radius: .5rem; border: none;
+      padding: .6rem .9rem;
+      font-size: .82rem; margin-bottom: 1rem;
+      display: flex; align-items: flex-start; gap: .5rem;
+    }
+    .login-alert i { flex-shrink: 0; margin-top: .05rem; }
+
+    /* Botón ingresar */
+    .btn-ingresar {
+      width: 100%;
+      background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand-mid) 100%);
+      color: #fff; border: none; border-radius: .5rem;
+      padding: .8rem 1rem; font-size: .9rem; font-weight: 600;
+      letter-spacing: .2px; cursor: pointer;
+      transition: opacity .2s, transform .1s;
+      display: flex; align-items: center; justify-content: center; gap: .5rem;
+      margin-top: .25rem;
+    }
+    .btn-ingresar:hover  { opacity: .91; transform: translateY(-1px); }
+    .btn-ingresar:active { transform: translateY(0); opacity: 1; }
+
+    /* Footer */
+    .login-footer {
+      text-align: center; margin-top: 1.25rem;
+      font-size: .75rem; color: #64748b;
+    }
+
+    /* ── Escritorio: ocultar mobile-brand sobre el card ── */
+    @media (min-width: 992px) {
+      .mobile-brand { display: none; }
+    }
+
+    /* ── Móvil: ocultar panel de marca ── */
+    @media (max-width: 991.98px) {
+      .brand-panel { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+<div class="split-wrap">
+
+  <!-- Panel marca (solo lg+) -->
+  <div class="brand-panel col-lg-5 d-none d-lg-flex flex-column">
+    <div class="brand-logo-wrap">
+      <img src="{% static 'img/logo.jpg' %}" alt="Logo Brisas de Pacandé">
+    </div>
+    <div class="brand-name">Brisas de Pacandé</div>
+    <div class="brand-tagline">Sistema de Información Empresarial</div>
+    <div class="brand-pills">
+      <span class="brand-pill"><i class="bi bi-box-seam me-1"></i>Producción</span>
+      <span class="brand-pill"><i class="bi bi-truck me-1"></i>Distribución</span>
+      <span class="brand-pill"><i class="bi bi-archive me-1"></i>Activos</span>
+      <span class="brand-pill"><i class="bi bi-bar-chart-line me-1"></i>Reportes</span>
+    </div>
+    <div class="brand-footer-txt">Melgar, Tolima &mdash; Colombia</div>
+  </div>
+
+  <!-- Panel formulario -->
+  <div class="form-panel col-12 col-lg-7">
+    <div class="login-box">
+
+      <!-- Branding sobre el card (visible en tablet y móvil) -->
+      <div class="mobile-brand">
+        <img src="{% static 'img/logo.jpg' %}" alt="Logo" class="mobile-brand-logo">
+        <div class="mobile-brand-name">Brisas de Pacandé</div>
+        <div class="mobile-brand-tagline">Sistema de Información Empresarial</div>
+      </div>
+
+      <!-- Card con el formulario -->
+      <div class="login-card">
+        <h4>Bienvenido</h4>
+        <p class="subtitle">Ingresa tus credenciales para continuar</p>
+
+        {% if form.errors %}
+        <div class="login-alert">
+          <i class="bi bi-exclamation-circle-fill"></i>
+          <span>
+            {% if form.non_field_errors %}
+              {{ form.non_field_errors|join:" " }}
+            {% else %}
+              Usuario o contraseña incorrectos. Intenta de nuevo.
+            {% endif %}
+          </span>
+        </div>
+        {% endif %}
+
+        {% if messages %}
+        {% for msg in messages %}
+        <div class="login-alert" style="background:#eff6ff;color:#1e40af;">
+          <i class="bi bi-info-circle-fill"></i>
+          <span>{{ msg }}</span>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}">
+
+          <div>
+            <label for="id_username" class="field-label">Usuario</label>
+            <div class="input-wrap">
+              <i class="bi bi-person-fill input-icon"></i>
+              <input type="text" name="username" id="id_username"
+                     placeholder="Tu nombre de usuario"
+                     autocomplete="username" autofocus required>
+            </div>
+          </div>
+
+          <div>
+            <label for="id_password" class="field-label">Contraseña</label>
+            <div class="input-wrap has-eye">
+              <i class="bi bi-lock-fill input-icon"></i>
+              <input type="password" name="password" id="id_password"
+                     placeholder="••••••••"
+                     autocomplete="current-password" required>
+              <button type="button" class="eye-btn" onclick="togglePwd()" tabindex="-1" aria-label="Mostrar/ocultar contraseña">
+                <i class="bi bi-eye" id="ico-pwd"></i>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-ingresar">
+            <i class="bi bi-box-arrow-in-right"></i>
+            Ingresar al sistema
+          </button>
+        </form>
+      </div>
+
+      <p class="login-footer">&copy; Brisas de Pacandé &mdash; Uso interno</p>
+
+    </div>
+  </div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function togglePwd() {
+  const inp = document.getElementById('id_password');
+  const ico = document.getElementById('ico-pwd');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    ico.className = 'bi bi-eye-slash';
+  } else {
+    inp.type = 'password';
+    ico.className = 'bi bi-eye';
+  }
+}
+</script>
+</body>
+</html>

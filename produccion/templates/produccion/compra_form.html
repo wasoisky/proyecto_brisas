@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Nueva Compra de Insumo — Brisas de Pacandé{% endblock %}
+{% block nav_produccion %}active{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-cart-check me-2"></i>Nueva compra de insumo</h5>
+      </div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% for field in form %}
+          <div class="mb-3 {% if field.field.widget.attrs.class == 'form-check-input' %}form-check{% endif %}">
+            {% if field.field.widget.attrs.class == 'form-check-input' %}
+              {{ field }}
+              <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {% else %}
+              <label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}
+                <div class="form-text text-muted">{{ field.help_text }}</div>
+              {% endif %}
+            {% endif %}
+            {% if field.errors %}
+              <div class="invalid-feedback d-block">{{ field.errors|join:", " }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+
+          <div class="alert alert-info py-2 small mt-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Al guardar, la cantidad ingresada se sumará automáticamente al stock actual del insumo.
+          </div>
+
+          <div class="d-flex justify-content-end gap-2 mt-3">
+            <a href="{% url 'produccion:compra_list' %}" class="btn btn-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>Registrar compra
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

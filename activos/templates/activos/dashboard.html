@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Activos Retornables — Brisas de Pacandé{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h4 class="mb-0"><i class="bi bi-archive me-2"></i>Activos Retornables</h4>
+  <a href="{% url 'activos:movimiento_create' %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>Registrar movimiento
+  </a>
+</div>
+
+<div class="row g-3 mb-4">
+  {% for item in resumen %}
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header fw-semibold d-flex justify-content-between flex-wrap gap-1">
+        <span>
+          {% if item.tipo == 'BOT' %}<i class="bi bi-droplet me-2 text-primary"></i>
+          {% else %}<i class="bi bi-grid me-2 text-success"></i>{% endif %}
+          {{ item.label }}
+        </span>
+        {% if item.ultimo %}
+        <small class="text-muted fw-normal">Último: {{ item.ultimo.fecha }} — {{ item.ultimo.get_momento_display }}</small>
+        {% else %}
+        <small class="text-muted fw-normal">Sin registros</small>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if item.ultimo %}
+          {% if item.tipo == 'BOT' %}
+          <!-- Botellón: 4 estados -->
+          <div class="row g-2 text-center">
+            <div class="col-6 col-lg-3">
+              <div class="border rounded p-2">
+                <div class="fs-4 fw-bold text-primary">{{ item.ultimo.cantidad_en_planta_lleno }}</div>
+                <div class="small text-muted">Planta llenos</div>
+              </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="border rounded p-2">
+                <div class="fs-4 fw-bold text-secondary">{{ item.ultimo.cantidad_en_planta_vacio }}</div>
+                <div class="small text-muted">Planta vacíos</div>
+              </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="border rounded p-2">
+                <div class="fs-4 fw-bold text-warning">{{ item.ultimo.cantidad_en_clientes }}</div>
+                <div class="small text-muted">En clientes</div>
+              </div>
+            </div>
+            <div class="col-6 col-lg-3">
+              <div class="border rounded p-2">
+                <div class="fs-4 fw-bold text-danger">{{ item.ultimo.cantidad_baja }}</div>
+                <div class="small text-muted">Dados de baja</div>
+              </div>
+            </div>
+          </div>
+          {% else %}
+          <!-- Canastilla: 3 estados -->
+          <div class="row g-2 text-center">
+            <div class="col-4">
+              <div class="border rounded p-2">
+                <div class="fs-4 fw-bold text-success">{{ item.ultimo.cantidad_en_planta_lleno }}</div>
+                <div class="small text-muted">Sin uso</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="border rounded p-2">
+                <div class="fs-4 fw-bold text-warning">{{ item.ultimo.cantidad_en_clientes }}</div>
+                <div class="small text-muted">En uso</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="border rounded p-2">
+                <div class="fs-4 fw-bold text-danger">{{ item.ultimo.cantidad_baja }}</div>
+                <div class="small text-muted">Dados de baja</div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+          <div class="mt-2 text-end">
+            <span class="text-muted small">Total: </span>
+            <span class="fw-semibold">{{ item.ultimo.total }}</span>
+          </div>
+        {% else %}
+        <p class="text-muted text-center mb-0 py-2">No hay movimientos registrados.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Movimientos recientes -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span class="fw-semibold">Movimientos recientes</span>
+    <a href="{% url 'activos:movimiento_list' %}" class="btn btn-outline-secondary btn-sm">Ver todos</a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Fecha</th>
+          <th>Momento</th>
+          <th>Tipo</th>
+          <th class="text-end">Estado 1</th>
+          <th class="text-end">Estado 2</th>
+          <th class="text-end">Baja</th>
+          <th class="text-end">Total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in recientes %}
+        <tr>
+          <td>{{ m.fecha }}</td>
+          <td><span class="badge {% if m.momento == 'INI' %}bg-info text-dark{% else %}bg-dark{% endif %}">{{ m.get_momento_display }}</span></td>
+          <td>{{ m.get_tipo_activo_display }}</td>
+          {% if m.tipo_activo == 'BOT' %}
+            <td class="text-end" title="Llenos">{{ m.cantidad_en_planta_lleno }} / {{ m.cantidad_en_planta_vacio }}<small class="text-muted"> ll/va</small></td>
+            <td class="text-end" title="En clientes">{{ m.cantidad_en_clientes }}<small class="text-muted"> cli</small></td>
+          {% else %}
+            <td class="text-end" title="Sin uso">{{ m.cantidad_en_planta_lleno }}<small class="text-muted"> s/u</small></td>
+            <td class="text-end" title="En uso">{{ m.cantidad_en_clientes }}<small class="text-muted"> uso</small></td>
+          {% endif %}
+          <td class="text-end text-danger">{{ m.cantidad_baja }}</td>
+          <td class="text-end fw-semibold">{{ m.total }}</td>
+          <td class="text-end">
+            <a href="{% url 'activos:movimiento_detail' m.pk %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-eye"></i></a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center text-muted py-3">Sin movimientos aún.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
