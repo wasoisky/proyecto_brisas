@@ -65,7 +65,7 @@
       <tbody>
         {% for m in movimientos %}
         <tr>
-          <td>{{ m.fecha }}</td>
+          <td class="text-nowrap">{{ m.fecha|date:"d/m/Y" }}</td>
           <td><span class="badge {% if m.momento == 'INI' %}bg-info text-dark{% else %}bg-dark{% endif %}">{{ m.get_momento_display }}</span></td>
           <td>{{ m.get_tipo_activo_display }}</td>
           <td class="text-end small">

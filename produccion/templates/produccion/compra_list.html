@@ -59,7 +59,7 @@
       <tbody>
         {% for c in compras %}
         <tr>
-          <td>{{ c.fecha }}</td>
+          <td class="text-nowrap">{{ c.fecha|date:"d/m/Y" }}</td>
           <td>{{ c.insumo.nombre }}</td>
           <td class="text-end fw-semibold">{{ c.cantidad }}</td>
           <td class="text-muted small">{{ c.insumo.unidad_medida }}</td>

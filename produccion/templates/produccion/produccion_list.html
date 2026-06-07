@@ -53,7 +53,7 @@
       <tbody>
         {% for r in registros %}
         <tr>
-          <td>{{ r.fecha }}</td>
+          <td class="text-nowrap">{{ r.fecha|date:"d/m/Y" }}</td>
           <td><code>{{ r.lote }}</code></td>
           <td>{{ r.producto.nombre }}</td>
           <td class="text-end fw-semibold">{{ r.cantidad_producida }}</td>

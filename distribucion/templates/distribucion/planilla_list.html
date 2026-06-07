@@ -45,7 +45,7 @@
       <tbody>
         {% for p in planillas %}
         <tr>
-          <td>{{ p.fecha }}</td>
+          <td class="text-nowrap">{{ p.fecha|date:"d/m/Y" }}</td>
           <td>{{ p.distribuidor.get_full_name|default:p.distribuidor.username }}</td>
           <td class="text-center">
             {% if p.estado == 'ABR' %}<span class="badge bg-primary">Abierta</span>

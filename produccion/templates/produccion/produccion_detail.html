@@ -20,7 +20,7 @@
           <dd class="col-7"><code>{{ registro.lote }}</code></dd>
 
           <dt class="col-5 text-muted">Fecha</dt>
-          <dd class="col-7">{{ registro.fecha }}</dd>
+          <dd class="col-7">{{ registro.fecha|date:"d/m/Y" }}</dd>
 
           <dt class="col-5 text-muted">Producto</dt>
           <dd class="col-7">{{ registro.producto.nombre }}</dd>

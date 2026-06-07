@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Movimiento {{ mov.fecha }} — Brisas de Pacandé{% endblock %}
+{% block title %}Movimiento {{ mov.fecha|date:"d/m/Y" }} — Brisas de Pacandé{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -16,7 +16,7 @@
       <div class="card-body">
         <dl class="row mb-0">
           <dt class="col-5 text-muted">Fecha</dt>
-          <dd class="col-7">{{ mov.fecha }}</dd>
+          <dd class="col-7">{{ mov.fecha|date:"d/m/Y" }}</dd>
           <dt class="col-5 text-muted">Momento</dt>
           <dd class="col-7">
             <span class="badge {% if mov.momento == 'INI' %}bg-info text-dark{% else %}bg-dark{% endif %}">

@@ -20,7 +20,7 @@
           {{ item.label }}
         </span>
         {% if item.ultimo %}
-        <small class="text-muted fw-normal">Último: {{ item.ultimo.fecha }} — {{ item.ultimo.get_momento_display }}</small>
+        <small class="text-muted fw-normal">Último: {{ item.ultimo.fecha|date:"d/m/Y" }} — {{ item.ultimo.get_momento_display }}</small>
         {% else %}
         <small class="text-muted fw-normal">Sin registros</small>
         {% endif %}
@@ -114,7 +114,7 @@
       <tbody>
         {% for m in recientes %}
         <tr>
-          <td>{{ m.fecha }}</td>
+          <td class="text-nowrap">{{ m.fecha|date:"d/m/Y" }}</td>
           <td><span class="badge {% if m.momento == 'INI' %}bg-info text-dark{% else %}bg-dark{% endif %}">{{ m.get_momento_display }}</span></td>
           <td>{{ m.get_tipo_activo_display }}</td>
           {% if m.tipo_activo == 'BOT' %}

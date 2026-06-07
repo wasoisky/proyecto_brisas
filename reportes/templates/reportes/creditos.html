@@ -43,7 +43,7 @@
         <tr>
           <td class="fw-semibold">{{ c.cliente.nombre }}</td>
           <td class="small">{{ c.entrega.planilla.distribuidor.get_full_name|default:c.entrega.planilla.distribuidor.username }}</td>
-          <td>{{ c.fecha_creacion }}</td>
+          <td class="text-nowrap">{{ c.fecha_creacion|date:"d/m/Y" }}</td>
           <td class="small">{{ c.entrega.producto.nombre }} x{{ c.entrega.cantidad }}</td>
           <td class="text-end">${{ c.monto|floatformat:0 }}</td>
           <td class="text-end fw-bold text-warning">${{ c.saldo_pendiente|floatformat:0 }}</td>
