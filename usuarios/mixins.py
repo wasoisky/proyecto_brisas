@@ -9,10 +9,10 @@ INICIO_POR_ROL = {
     'DIST':  '/distribucion/ruta/',
 }
 
-TODOS  = ['ADMIN', 'PROD', 'DIST']
-ADMIN_PROD = ['ADMIN', 'PROD']
-SOLO_ADMIN = ['ADMIN']
-ADMIN_DIST = ['ADMIN', 'DIST']
+TODOS      = ('ADMIN', 'PROD', 'DIST')
+ADMIN_PROD = ('ADMIN', 'PROD')
+SOLO_ADMIN = ('ADMIN',)
+ADMIN_DIST = ('ADMIN', 'DIST')
 
 
 class RolRequiredMixin(LoginRequiredMixin):
@@ -21,7 +21,7 @@ class RolRequiredMixin(LoginRequiredMixin):
     Declara `roles_permitidos` en cada vista para controlar el acceso.
     Los superusuarios técnicos (is_superuser) siempre tienen acceso.
     """
-    roles_permitidos: list[str] = []
+    roles_permitidos: tuple[str, ...] = ()
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
