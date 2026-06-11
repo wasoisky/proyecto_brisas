@@ -1,6 +1,6 @@
 from django import forms
 from django.forms import inlineformset_factory
-from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo
+from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto
 
 
 class ProductoForm(forms.ModelForm):
@@ -55,6 +55,20 @@ class CompraInsumoForm(forms.ModelForm):
             'factura': forms.TextInput(attrs={'class': 'form-control'}),
         }
 
+
+RecetaProductoFormSet = inlineformset_factory(
+    Producto,
+    RecetaProducto,
+    fields=['insumo', 'cantidad_por_unidad'],
+    extra=1,
+    can_delete=True,
+    widgets={
+        'insumo': forms.Select(attrs={'class': 'form-select form-select-sm'}),
+        'cantidad_por_unidad': forms.NumberInput(attrs={
+            'class': 'form-control form-control-sm', 'step': '0.0001', 'min': '0.0001'
+        }),
+    },
+)
 
 ConsumoInsumoFormSet = inlineformset_factory(
     Produccion,

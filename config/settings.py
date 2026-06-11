@@ -29,7 +29,9 @@ SECRET_KEY = os.environ.get('SECRET_KEY')  # Usa la variable de entorno o una cl
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG') == 'True'  # Convierte la variable de entorno a booleano
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '192.168.18.6']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '192.168.18.6', '192.168.1.65', 'zjrkgqtb-8000.usw3.devtunnels.ms']
+
+CSRF_TRUSTED_ORIGINS = ['https://zjrkgqtb-8000.usw3.devtunnels.ms']
 
 
 # Application definition

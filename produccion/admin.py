@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo
+from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto
 
 
 @admin.register(Producto)
@@ -36,3 +36,13 @@ class CompraInsumoAdmin(admin.ModelAdmin):
     list_display = ('fecha', 'insumo', 'cantidad', 'precio_unitario', 'proveedor', 'factura', 'registrado_por')
     list_filter = ('fecha', 'insumo')
     search_fields = ('factura', 'proveedor')
+
+
+class RecetaInline(admin.TabularInline):
+    model = RecetaProducto
+    extra = 1
+    fields = ('insumo', 'cantidad_por_unidad')
+
+
+# Agregar inline de receta al admin de Producto
+ProductoAdmin.inlines = [RecetaInline]

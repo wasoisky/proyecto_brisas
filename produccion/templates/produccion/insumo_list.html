@@ -23,6 +23,11 @@
 <div class="card mb-3">
   <div class="card-body py-2">
     <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-sm-auto">
+        <label class="form-label small mb-1">Buscar</label>
+        <input type="text" name="q" class="form-control form-control-sm" placeholder="Nombre del insumo…"
+               value="{{ request.GET.q }}" style="min-width:200px">
+      </div>
       <div class="col-auto">
         <label class="form-label small mb-1">Categoría</label>
         <select name="categoria" class="form-select form-select-sm">
@@ -95,6 +100,11 @@
             {% endif %}
           </td>
           <td class="text-end">
+            <a href="{% url 'produccion:insumo_kardex' ins.pk %}"
+               class="btn btn-outline-secondary btn-sm"
+               title="Ver kardex (historial de entradas y salidas)">
+              <i class="bi bi-card-list"></i>
+            </a>
             <a href="{% url 'produccion:insumo_update' ins.pk %}" class="btn btn-outline-primary btn-sm">
               <i class="bi bi-pencil"></i>
             </a>
@@ -116,4 +126,6 @@
     </table>
   </div>
 </div>
+
+{% include "includes/pagination.html" %}
 {% endblock %}

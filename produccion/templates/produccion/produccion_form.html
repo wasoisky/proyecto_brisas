@@ -53,45 +53,53 @@
     <!-- Insumos consumidos -->
     <div class="col-md-6">
       <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
           <span class="fw-semibold">Insumos consumidos</span>
-          <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-consumo">
-            <i class="bi bi-plus-lg me-1"></i>Agregar fila
-          </button>
+          <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-outline-success btn-sm" id="btn-cargar-receta"
+                    title="Precarga los insumos según la receta del producto" disabled>
+              <i class="bi bi-magic me-1"></i>Cargar receta
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-consumo">
+              <i class="bi bi-plus-lg me-1"></i>Agregar fila
+            </button>
+          </div>
         </div>
         <div class="card-body p-0">
           {{ formset.management_form }}
-          <table class="table table-sm mb-0">
-            <thead class="table-light">
-              <tr>
-                <th style="width:55%">Insumo</th>
-                <th style="width:30%">Cantidad</th>
-                <th class="text-center" style="width:15%">Quitar</th>
-              </tr>
-            </thead>
-            <tbody id="consumos-tbody">
-              {% for fs_form in formset %}
-              <tr class="consumo-row">
-                <td>
-                  {{ fs_form.insumo }}
-                  {% for hf in fs_form.hidden_fields %}{{ hf }}{% endfor %}
-                  {% if fs_form.insumo.errors %}<div class="invalid-feedback d-block small">{{ fs_form.insumo.errors|join:", " }}</div>{% endif %}
-                </td>
-                <td>
-                  {{ fs_form.cantidad }}
-                  {% if fs_form.cantidad.errors %}<div class="invalid-feedback d-block small">{{ fs_form.cantidad.errors|join:", " }}</div>{% endif %}
-                </td>
-                <td class="text-center">
-                  {% if fs_form.can_delete %}
-                  <div class="form-check d-flex justify-content-center">
-                    {{ fs_form.DELETE }}
-                  </div>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="min-width:160px">Insumo</th>
+                  <th style="min-width:110px">Cantidad</th>
+                  <th class="text-center" style="width:60px">Quitar</th>
+                </tr>
+              </thead>
+              <tbody id="consumos-tbody">
+                {% for fs_form in formset %}
+                <tr class="consumo-row">
+                  <td>
+                    {{ fs_form.insumo }}
+                    {% for hf in fs_form.hidden_fields %}{{ hf }}{% endfor %}
+                    {% if fs_form.insumo.errors %}<div class="invalid-feedback d-block small">{{ fs_form.insumo.errors|join:", " }}</div>{% endif %}
+                  </td>
+                  <td>
+                    {{ fs_form.cantidad }}
+                    {% if fs_form.cantidad.errors %}<div class="invalid-feedback d-block small">{{ fs_form.cantidad.errors|join:", " }}</div>{% endif %}
+                  </td>
+                  <td class="text-center">
+                    {% if fs_form.can_delete %}
+                    <div class="form-check d-flex justify-content-center">
+                      {{ fs_form.DELETE }}
+                    </div>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
         <div class="card-footer text-muted small">
           El stock de cada insumo se descuenta automáticamente al guardar.
@@ -125,12 +133,83 @@
 
 {% block extra_js %}
 <script>
+const RECETA_API_URL = "{% url 'produccion:receta_api' 0 %}".replace('/0/', '/');
+const selectProducto = document.getElementById('{{ form.producto.id_for_label }}');
+const inputCantidad  = document.getElementById('{{ form.cantidad_producida.id_for_label }}');
+const btnCargar      = document.getElementById('btn-cargar-receta');
+
+function actualizarBotonReceta() {
+  const tieneProducto  = selectProducto && selectProducto.value;
+  const tieneCantidad  = inputCantidad && parseFloat(inputCantidad.value) > 0;
+  btnCargar.disabled = !(tieneProducto && tieneCantidad);
+}
+
+if (selectProducto) selectProducto.addEventListener('change', actualizarBotonReceta);
+if (inputCantidad)  inputCantidad.addEventListener('input', actualizarBotonReceta);
+actualizarBotonReceta();
+
+btnCargar.addEventListener('click', function () {
+  const productoId = selectProducto.value;
+  const cantidad   = parseFloat(inputCantidad.value) || 1;
+
+  fetch(RECETA_API_URL + productoId + '/')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.receta || data.receta.length === 0) {
+        alert('Este producto no tiene receta definida.\nVe a Productos → ícono de receta para crearla.');
+        return;
+      }
+      // Limpiar filas existentes (marcar DELETE en las que tienen PK, borrar las vacías)
+      document.querySelectorAll('.consumo-row').forEach(row => {
+        const delCheck = row.querySelector('input[type=checkbox][name$="-DELETE"]');
+        const pkInput  = row.querySelector('input[name$="-id"]');
+        if (pkInput && pkInput.value) {
+          if (delCheck) { delCheck.checked = true; row.style.opacity = '0.35'; }
+        } else {
+          row.remove();
+        }
+      });
+
+      const tbody     = document.getElementById('consumos-tbody');
+      const totalForms = document.getElementById('id_consumos-TOTAL_FORMS');
+      const emptyTpl  = document.getElementById('empty-consumo-row').innerHTML;
+
+      data.receta.forEach(linea => {
+        const idx = parseInt(totalForms.value);
+        const html = emptyTpl.replace(/__prefix__/g, idx);
+        const tr = document.createElement('tr');
+        tr.className = 'consumo-row';
+        tr.innerHTML = html;
+
+        // Seleccionar el insumo correspondiente
+        const sel = tr.querySelector('select');
+        if (sel) {
+          for (let opt of sel.options) {
+            if (opt.value == linea.insumo_id) { opt.selected = true; break; }
+          }
+        }
+        // Calcular cantidad = cantidad_por_unidad × cantidad_producida
+        const cantInput = tr.querySelector('input[type=number]');
+        if (cantInput) {
+          const total = (parseFloat(linea.cantidad_por_unidad) * cantidad).toFixed(4)
+                          .replace(/\.?0+$/, '');
+          cantInput.value = total;
+        }
+
+        tbody.appendChild(tr);
+        totalForms.value = idx + 1;
+      });
+    })
+    .catch(() => alert('No se pudo obtener la receta. Verifica la conexión.'));
+});
+
+// Agregar fila manual
 document.getElementById('btn-add-consumo').addEventListener('click', function () {
-  const tbody = document.getElementById('consumos-tbody');
+  const tbody      = document.getElementById('consumos-tbody');
   const totalForms = document.getElementById('id_consumos-TOTAL_FORMS');
-  const idx = parseInt(totalForms.value);
-  const template = document.getElementById('empty-consumo-row').innerHTML
-    .replace(/__prefix__/g, idx);
+  const idx        = parseInt(totalForms.value);
+  const template   = document.getElementById('empty-consumo-row').innerHTML
+                       .replace(/__prefix__/g, idx);
   const tr = document.createElement('tr');
   tr.className = 'consumo-row';
   tr.innerHTML = template;
@@ -138,7 +217,7 @@ document.getElementById('btn-add-consumo').addEventListener('click', function ()
   totalForms.value = idx + 1;
 });
 
-// Atenuar visualmente las filas marcadas para eliminar
+// Atenuar filas marcadas para eliminar
 document.addEventListener('change', function (e) {
   if (e.target.name && e.target.name.endsWith('-DELETE')) {
     e.target.closest('tr').style.opacity = e.target.checked ? '0.35' : '1';

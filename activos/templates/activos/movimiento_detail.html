@@ -58,18 +58,18 @@
           </div>
         </div>
         {% else %}
-        <!-- Canastilla: 3 estados -->
+        <!-- Canastilla: 3 estados (en planta = lleno + vacio) -->
         <div class="row g-2 text-center">
           <div class="col-4">
             <div class="border rounded p-2">
-              <div class="fs-4 fw-bold text-success">{{ mov.cantidad_en_planta_lleno }}</div>
-              <div class="small text-muted">Sin uso</div>
+              <div class="fs-4 fw-bold text-success">{{ mov.cantidad_en_planta_lleno|add:mov.cantidad_en_planta_vacio }}</div>
+              <div class="small text-muted">En planta</div>
             </div>
           </div>
           <div class="col-4">
             <div class="border rounded p-2">
               <div class="fs-4 fw-bold text-warning">{{ mov.cantidad_en_clientes }}</div>
-              <div class="small text-muted">En uso</div>
+              <div class="small text-muted">En clientes</div>
             </div>
           </div>
           <div class="col-4">

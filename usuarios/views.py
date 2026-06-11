@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.db import models
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views import View
@@ -14,9 +15,16 @@ class UsuarioListView(RolRequiredMixin, ListView):
     model = Usuario
     template_name = 'usuarios/lista.html'
     context_object_name = 'usuarios'
+    paginate_by = 10
 
     def get_queryset(self):
         qs = Usuario.objects.exclude(is_superuser=True).order_by('rol', 'last_name', 'first_name')
+        if q := self.request.GET.get('q'):
+            qs = qs.filter(
+                models.Q(username__icontains=q) |
+                models.Q(first_name__icontains=q) |
+                models.Q(last_name__icontains=q)
+            )
         if rol := self.request.GET.get('rol'):
             qs = qs.filter(rol=rol)
         activo = self.request.GET.get('activo')
@@ -124,7 +132,7 @@ class RegistroAccesoListView(RolRequiredMixin, ListView):
     model = RegistroAcceso
     template_name = 'usuarios/accesos.html'
     context_object_name = 'registros'
-    paginate_by = 50
+    paginate_by = 10
 
     def get_queryset(self):
         qs = RegistroAcceso.objects.select_related('usuario').order_by('-timestamp')

@@ -183,9 +183,12 @@ class DescuadreListView(RolRequiredMixin, ListView):
     model = Descuadre
     template_name = 'reportes/descuadres.html'
     context_object_name = 'descuadres'
+    paginate_by = 10
 
     def get_queryset(self):
         qs = Descuadre.objects.select_related('detectado_por')
+        if q := self.request.GET.get('q'):
+            qs = qs.filter(descripcion__icontains=q)
         if tipo := self.request.GET.get('tipo'):
             qs = qs.filter(tipo=tipo)
         resuelto = self.request.GET.get('resuelto')
@@ -235,6 +238,7 @@ class CreditosPendientesView(RolRequiredMixin, ListView):
     roles_permitidos = SOLO_ADMIN
     template_name = 'reportes/creditos.html'
     context_object_name = 'creditos'
+    paginate_by = 10
 
     def get_queryset(self):
         qs = Credito.objects.filter(pagado=False).select_related(

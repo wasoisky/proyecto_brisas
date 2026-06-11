@@ -2,15 +2,17 @@ from datetime import date
 
 from django.contrib import messages
 from usuarios.mixins import RolRequiredMixin, ADMIN_PROD
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import F
 from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 
-from .models import Producto, Insumo, Produccion, CompraInsumo
-from .forms import ProductoForm, InsumoForm, ProduccionForm, ConsumoInsumoFormSet, CompraInsumoForm
+from django.http import JsonResponse
+
+from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto
+from .forms import ProductoForm, InsumoForm, ProduccionForm, ConsumoInsumoFormSet, CompraInsumoForm, RecetaProductoFormSet
 
 
 # ── Producto ──────────────────────────────────────────────────────────────────
@@ -20,9 +22,12 @@ class ProductoListView(RolRequiredMixin, ListView):
     model = Producto
     template_name = 'produccion/producto_list.html'
     context_object_name = 'productos'
+    paginate_by = 10
 
     def get_queryset(self):
         qs = Producto.objects.all()
+        if q := self.request.GET.get('q'):
+            qs = qs.filter(nombre__icontains=q)
         presentacion = self.request.GET.get('presentacion')
         activo = self.request.GET.get('activo')
         if presentacion:
@@ -79,9 +84,12 @@ class InsumoListView(RolRequiredMixin, ListView):
     model = Insumo
     template_name = 'produccion/insumo_list.html'
     context_object_name = 'insumos'
+    paginate_by = 10
 
     def get_queryset(self):
         qs = Insumo.objects.all()
+        if q := self.request.GET.get('q'):
+            qs = qs.filter(nombre__icontains=q)
         categoria = self.request.GET.get('categoria')
         activo = self.request.GET.get('activo')
         solo_alertas = self.request.GET.get('alertas')
@@ -147,9 +155,12 @@ class ProduccionListView(RolRequiredMixin, ListView):
     model = Produccion
     template_name = 'produccion/produccion_list.html'
     context_object_name = 'registros'
+    paginate_by = 10
 
     def get_queryset(self):
         qs = Produccion.objects.select_related('producto', 'registrado_por')
+        if q := self.request.GET.get('q'):
+            qs = qs.filter(lote__icontains=q)
         if fecha := self.request.GET.get('fecha'):
             qs = qs.filter(fecha=fecha)
         if producto := self.request.GET.get('producto'):
@@ -244,9 +255,16 @@ class CompraInsumoListView(RolRequiredMixin, ListView):
     model = CompraInsumo
     template_name = 'produccion/compra_list.html'
     context_object_name = 'compras'
+    paginate_by = 10
 
     def get_queryset(self):
         qs = CompraInsumo.objects.select_related('insumo', 'registrado_por')
+        if q := self.request.GET.get('q'):
+            qs = qs.filter(
+                models.Q(proveedor__icontains=q) |
+                models.Q(factura__icontains=q) |
+                models.Q(insumo__nombre__icontains=q)
+            )
         if insumo_id := self.request.GET.get('insumo'):
             qs = qs.filter(insumo_id=insumo_id)
         if desde := self.request.GET.get('desde'):
@@ -258,8 +276,8 @@ class CompraInsumoListView(RolRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['insumos'] = Insumo.objects.filter(activo=True)
-        compras = ctx['compras']
-        ctx['total_general'] = sum(c.total for c in compras)
+        # self.object_list es el queryset completo filtrado (sin cortar por página)
+        ctx['total_general'] = sum(c.total for c in self.object_list)
         return ctx
 
 
@@ -287,3 +305,136 @@ class CompraInsumoCreateView(RolRequiredMixin, CreateView):
             f'de {compra.insumo.nombre}. Stock actualizado.',
         )
         return redirect(self.success_url)
+
+
+# ── RecetaProducto ────────────────────────────────────────────────────────────
+
+class RecetaListView(RolRequiredMixin, ListView):
+    roles_permitidos = ADMIN_PROD
+    model = Producto
+    template_name = 'produccion/receta_list.html'
+    context_object_name = 'productos'
+    paginate_by = 10
+
+    def get_queryset(self):
+        qs = Producto.objects.prefetch_related('receta__insumo').filter(activo=True)
+        if q := self.request.GET.get('q'):
+            qs = qs.filter(nombre__icontains=q)
+        return qs
+
+
+class RecetaUpdateView(RolRequiredMixin, View):
+    """Edita la receta (lista de insumos y cantidades) de un producto."""
+    roles_permitidos = ADMIN_PROD
+
+    def _get_producto(self, pk):
+        return get_object_or_404(Producto, pk=pk)
+
+    def get(self, request, pk):
+        producto = self._get_producto(pk)
+        formset = RecetaProductoFormSet(instance=producto, prefix='receta')
+        return self._render(request, producto, formset)
+
+    def post(self, request, pk):
+        producto = self._get_producto(pk)
+        formset = RecetaProductoFormSet(request.POST, instance=producto, prefix='receta')
+        if formset.is_valid():
+            formset.save()
+            messages.success(request, f'Receta de "{producto.nombre}" guardada correctamente.')
+            return redirect('produccion:receta_list')
+        return self._render(request, producto, formset)
+
+    def _render(self, request, producto, formset):
+        return render(request, 'produccion/receta_form.html', {
+            'producto': producto,
+            'formset': formset,
+        })
+
+
+class InsumoKardexView(RolRequiredMixin, View):
+    """Historial cronológico de entradas (compras) y salidas (consumos) de un insumo."""
+    roles_permitidos = ADMIN_PROD
+
+    def get(self, request, pk):
+        from django.db.models import CharField, Value
+
+        insumo = get_object_or_404(Insumo, pk=pk)
+
+        compras = (
+            CompraInsumo.objects
+            .filter(insumo=insumo)
+            .select_related('registrado_por')
+            .values('fecha', 'cantidad', 'proveedor', 'factura', 'registrado_por__username')
+            .annotate(tipo=Value('entrada', output_field=CharField()))
+            .order_by('fecha', 'id')
+        )
+
+        consumos = (
+            ConsumoInsumo.objects
+            .filter(insumo=insumo)
+            .select_related('produccion__registrado_por')
+            .values(
+                fecha=F('produccion__fecha'),
+                cantidad=F('cantidad'),
+                lote=F('produccion__lote'),
+                registrado_por__username=F('produccion__registrado_por__username'),
+            )
+            .annotate(tipo=Value('salida', output_field=CharField()),
+                      proveedor=Value('', output_field=CharField()),
+                      factura=Value('', output_field=CharField()))
+            .order_by('produccion__fecha', 'id')
+        )
+
+        # Unir y ordenar cronológicamente, calcular saldo acumulado
+        movimientos = []
+        saldo = 0
+        entradas_lista = list(compras)
+        salidas_lista  = list(consumos)
+
+        todos = sorted(
+            [dict(m, _origen='entrada') for m in entradas_lista] +
+            [dict(m, _origen='salida')  for m in salidas_lista],
+            key=lambda x: (x['fecha'], x['tipo'])
+        )
+
+        for mov in todos:
+            cantidad = float(mov['cantidad'])
+            if mov['_origen'] == 'entrada':
+                saldo += cantidad
+            else:
+                saldo -= cantidad
+            movimientos.append({
+                'fecha':    mov['fecha'],
+                'tipo':     mov['_origen'],
+                'cantidad': cantidad,
+                'saldo':    round(saldo, 4),
+                'referencia': mov.get('proveedor') or mov.get('lote') or '',
+                'factura':  mov.get('factura', ''),
+                'usuario':  mov.get('registrado_por__username', ''),
+            })
+
+        return render(request, 'produccion/insumo_kardex.html', {
+            'insumo': insumo,
+            'movimientos': movimientos,
+            'saldo_calculado': round(saldo, 4),
+        })
+
+
+def receta_api(request, producto_id):
+    """Devuelve los insumos de la receta de un producto como JSON para precarga del formset."""
+    lineas = (
+        RecetaProducto.objects
+        .filter(producto_id=producto_id)
+        .select_related('insumo')
+        .values('insumo_id', 'insumo__nombre', 'insumo__unidad_medida', 'cantidad_por_unidad')
+    )
+    data = [
+        {
+            'insumo_id': l['insumo_id'],
+            'insumo_nombre': l['insumo__nombre'],
+            'unidad_medida': l['insumo__unidad_medida'],
+            'cantidad_por_unidad': str(l['cantidad_por_unidad']),
+        }
+        for l in lineas
+    ]
+    return JsonResponse({'receta': data})

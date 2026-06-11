@@ -20,6 +20,7 @@ class ClienteListView(RolRequiredMixin, ListView):
     model = Cliente
     template_name = 'distribucion/cliente_list.html'
     context_object_name = 'clientes'
+    paginate_by = 10
 
     def get_queryset(self):
         qs = Cliente.objects.all()
@@ -64,6 +65,7 @@ class PlanillaListView(RolRequiredMixin, ListView):
     model = Planilla
     template_name = 'distribucion/planilla_list.html'
     context_object_name = 'planillas'
+    paginate_by = 10
 
     def get_queryset(self):
         qs = Planilla.objects.select_related('distribuidor')
@@ -183,7 +185,7 @@ class PlanillaRutaView(RolRequiredMixin, View):
                 entrega = form.save(commit=False)
                 entrega.planilla = planilla
                 entrega.save()
-                if entrega.modalidad_pago == Entrega.ModalidadPago.CREDITO:
+                if entrega.modalidad_pago == Entrega.ModalidadPago.CREDITO and entrega.subtotal > 0:
                     monto = entrega.subtotal
                     Credito.objects.create(
                         cliente=entrega.cliente,

@@ -13,6 +13,11 @@
 <div class="card mb-3">
   <div class="card-body py-2">
     <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-sm-auto">
+        <label class="form-label small mb-1">Buscar lote</label>
+        <input type="text" name="q" class="form-control form-control-sm" placeholder="Ej: PROD-20250601…"
+               value="{{ request.GET.q }}" style="min-width:190px">
+      </div>
       <div class="col-auto">
         <label class="form-label small mb-1">Fecha</label>
         <input type="date" name="fecha" class="form-control form-control-sm"
@@ -73,4 +78,6 @@
     </table>
   </div>
 </div>
+
+{% include "includes/pagination.html" %}
 {% endblock %}

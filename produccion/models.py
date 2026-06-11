@@ -96,6 +96,27 @@ class ConsumoInsumo(models.Model):
         return f'{self.insumo.nombre} — {self.cantidad} {self.insumo.unidad_medida}'
 
 
+class RecetaProducto(models.Model):
+    """Cantidad de cada insumo necesaria por unidad producida de un producto."""
+    producto = models.ForeignKey(Producto, on_delete=models.CASCADE,
+                                 related_name='receta')
+    insumo = models.ForeignKey(Insumo, on_delete=models.PROTECT,
+                               related_name='recetas')
+    cantidad_por_unidad = models.DecimalField(
+        max_digits=10, decimal_places=4,
+        help_text='Cantidad de este insumo por cada unidad producida'
+    )
+
+    class Meta:
+        verbose_name = 'Receta de Producto'
+        verbose_name_plural = 'Recetas de Productos'
+        unique_together = ('producto', 'insumo')
+        ordering = ['producto', 'insumo']
+
+    def __str__(self):
+        return f'{self.producto.nombre} → {self.insumo.nombre} ({self.cantidad_por_unidad}/u)'
+
+
 class CompraInsumo(models.Model):
     fecha = models.DateField()
     insumo = models.ForeignKey(Insumo, on_delete=models.PROTECT,

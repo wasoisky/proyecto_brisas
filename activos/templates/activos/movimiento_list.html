@@ -74,8 +74,8 @@
               <span class="text-secondary" title="Vacíos">{{ m.cantidad_en_planta_vacio }}va</span> /
               <span class="text-warning" title="Clientes">{{ m.cantidad_en_clientes }}cli</span>
             {% else %}
-              <span class="text-success" title="Sin uso">{{ m.cantidad_en_planta_lleno }} s/u</span> /
-              <span class="text-warning" title="En uso">{{ m.cantidad_en_clientes }} uso</span>
+              <span class="text-success" title="En planta">{{ m.cantidad_en_planta_lleno|add:m.cantidad_en_planta_vacio }} planta</span> /
+              <span class="text-warning" title="En clientes">{{ m.cantidad_en_clientes }} cli</span>
             {% endif %}
           </td>
           <td class="text-end text-danger">{{ m.cantidad_baja }}</td>
@@ -92,4 +92,6 @@
     </table>
   </div>
 </div>
+
+{% include "includes/pagination.html" %}
 {% endblock %}

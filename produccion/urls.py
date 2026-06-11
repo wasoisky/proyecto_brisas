@@ -24,4 +24,12 @@ urlpatterns = [
     # Compras de insumos
     path('compras/', views.CompraInsumoListView.as_view(), name='compra_list'),
     path('compras/nueva/', views.CompraInsumoCreateView.as_view(), name='compra_create'),
+
+    # Recetas de productos
+    path('recetas/', views.RecetaListView.as_view(), name='receta_list'),
+    path('recetas/<int:pk>/editar/', views.RecetaUpdateView.as_view(), name='receta_update'),
+    path('api/receta/<int:producto_id>/', views.receta_api, name='receta_api'),
+
+    # Kardex de insumo
+    path('insumos/<int:pk>/kardex/', views.InsumoKardexView.as_view(), name='insumo_kardex'),
 ]

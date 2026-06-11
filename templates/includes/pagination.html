@@ -1,0 +1,66 @@
+{% load pagination_tags %}
+{% if is_paginated %}
+<nav aria-label="Paginación" class="mt-3">
+  <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2">
+
+    {# Contador de registros #}
+    <p class="text-muted small mb-0">
+      Mostrando
+      <strong>{{ page_obj.start_index }}–{{ page_obj.end_index }}</strong>
+      de <strong>{{ paginator.count }}</strong> registro{{ paginator.count|pluralize }}
+    </p>
+
+    {# Controles de página #}
+    <ul class="pagination pagination-sm mb-0 flex-wrap justify-content-center">
+
+      {# Primera página #}
+      <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+        <a class="page-link"
+           href="{% if page_obj.has_previous %}?{% url_replace page=1 %}{% else %}#{% endif %}"
+           title="Primera">
+          <i class="bi bi-chevron-double-left"></i>
+        </a>
+      </li>
+
+      {# Anterior #}
+      <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
+        <a class="page-link"
+           href="{% if page_obj.has_previous %}?{% url_replace page=page_obj.previous_page_number %}{% else %}#{% endif %}">
+          <i class="bi bi-chevron-left"></i>
+        </a>
+      </li>
+
+      {# Páginas cercanas #}
+      {% for num in paginator.page_range %}
+        {% if num == page_obj.number %}
+          <li class="page-item active">
+            <span class="page-link">{{ num }}</span>
+          </li>
+        {% elif num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+          <li class="page-item">
+            <a class="page-link" href="?{% url_replace page=num %}">{{ num }}</a>
+          </li>
+        {% endif %}
+      {% endfor %}
+
+      {# Siguiente #}
+      <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+        <a class="page-link"
+           href="{% if page_obj.has_next %}?{% url_replace page=page_obj.next_page_number %}{% else %}#{% endif %}">
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      </li>
+
+      {# Última página #}
+      <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
+        <a class="page-link"
+           href="{% if page_obj.has_next %}?{% url_replace page=paginator.num_pages %}{% else %}#{% endif %}"
+           title="Última">
+          <i class="bi bi-chevron-double-right"></i>
+        </a>
+      </li>
+
+    </ul>
+  </div>
+</nav>
+{% endif %}

@@ -41,6 +41,7 @@ class MovimientoListView(RolRequiredMixin, ListView):
     model = MovimientoActivo
     template_name = 'activos/movimiento_list.html'
     context_object_name = 'movimientos'
+    paginate_by = 10
 
     def get_queryset(self):
         qs = MovimientoActivo.objects.select_related('registrado_por')
