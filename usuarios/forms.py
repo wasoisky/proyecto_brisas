@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.password_validation import validate_password
 from .models import Usuario
 
 
@@ -46,6 +47,11 @@ class AdminPasswordResetForm(forms.Form):
         p2 = cleaned.get('password2')
         if p1 and p2 and p1 != p2:
             raise forms.ValidationError('Las contraseñas no coinciden.')
+        if p1:
+            try:
+                validate_password(p1)
+            except forms.ValidationError as e:
+                self.add_error('password1', e)
         return cleaned
 
 
