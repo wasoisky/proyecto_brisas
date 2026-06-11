@@ -105,3 +105,17 @@ class UsuarioUpdateViewTests(UsuarioTestMixin, TestCase):
         self.assertRedirects(response, reverse('usuarios:lista'))
         otro.refresh_from_db()
         self.assertEqual(otro.rol, 'DIST')
+
+    def test_editar_superusuario_redirige_a_lista(self):
+        super_user = Usuario.objects.create_superuser(
+            username='superadmin',
+            password='brisas2024',
+        )
+        response = self.client.get(reverse('usuarios:editar', args=[super_user.pk]))
+        self.assertRedirects(response, reverse('usuarios:lista'))
+
+    def test_get_editar_usuario_normal_renderiza_formulario(self):
+        otro = self.crear_usuario('cesar', rol='PROD')
+        response = self.client.get(reverse('usuarios:editar', args=[otro.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'cesar')

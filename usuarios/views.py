@@ -71,9 +71,10 @@ class UsuarioUpdateView(RolRequiredMixin, UpdateView):
         return obj
 
     def get(self, request, *args, **kwargs):
-        if self.get_object() is None:
+        self.object = self.get_object()
+        if self.object is None:
             return redirect('usuarios:lista')
-        return super().get(request, *args, **kwargs)
+        return self.render_to_response(self.get_context_data())
 
     def form_valid(self, form):
         usuario = form.save(commit=False)
