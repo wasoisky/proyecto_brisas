@@ -66,3 +66,42 @@ class AdminPasswordResetFormTests(TestCase):
             data={'password1': 'Brisas2024!', 'password2': 'OtroValor2024!'}
         )
         self.assertFalse(form.is_valid())
+
+
+class UsuarioUpdateViewTests(UsuarioTestMixin, TestCase):
+    def setUp(self):
+        self.admin = self.crear_admin()
+        self.client.force_login(self.admin)
+
+    def test_admin_no_puede_cambiar_su_propio_rol(self):
+        response = self.client.post(
+            reverse('usuarios:editar', args=[self.admin.pk]),
+            data={
+                'first_name': 'Admin',
+                'last_name': 'Test',
+                'email': '',
+                'telefono': '',
+                'rol': 'PROD',
+                'is_active': True,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.rol, 'ADMIN')
+
+    def test_admin_puede_cambiar_rol_de_otro_usuario(self):
+        otro = self.crear_usuario('nicolas', rol='PROD')
+        response = self.client.post(
+            reverse('usuarios:editar', args=[otro.pk]),
+            data={
+                'first_name': 'Test',
+                'last_name': 'User',
+                'email': '',
+                'telefono': '',
+                'rol': 'DIST',
+                'is_active': True,
+            },
+        )
+        self.assertRedirects(response, reverse('usuarios:lista'))
+        otro.refresh_from_db()
+        self.assertEqual(otro.rol, 'DIST')

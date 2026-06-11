@@ -80,6 +80,10 @@ class UsuarioUpdateView(RolRequiredMixin, UpdateView):
         if usuario.pk == self.request.user.pk and not form.cleaned_data.get('is_active', True):
             messages.error(self.request, 'No puedes desactivar tu propia cuenta.')
             return self.form_invalid(form)
+        if usuario.pk == self.request.user.pk and form.cleaned_data.get('rol') != 'ADMIN':
+            messages.error(self.request, 'No puedes cambiar tu propio rol.')
+            form.add_error('rol', 'No puedes cambiar tu propio rol.')
+            return self.form_invalid(form)
         usuario.save()
         messages.success(self.request, f'Usuario "{usuario.username}" actualizado.')
         return redirect(self.success_url)
