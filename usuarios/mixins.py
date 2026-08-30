@@ -31,3 +31,21 @@ class RolRequiredMixin(LoginRequiredMixin):
         messages.error(request, 'No tienes permiso para acceder a esta sección.')
         destino = INICIO_POR_ROL.get(request.user.rol, '/')
         return redirect(destino)
+
+
+class SuperusuarioRequiredMixin(LoginRequiredMixin):
+    """
+    Restringe el acceso a superusuarios técnicos de Django (is_superuser=True).
+    No confundir con RolRequiredMixin: ese es para roles de negocio (ADMIN/PROD/DIST),
+    este mixin es exclusivo para funciones administrativas del sistema (ej. backups)
+    que ni siquiera el rol de negocio ADMIN debe poder ejecutar.
+    """
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if request.user.is_superuser:
+            return super().dispatch(request, *args, **kwargs)
+        messages.error(request, 'Solo un superusuario puede acceder a esta sección.')
+        destino = INICIO_POR_ROL.get(request.user.rol, '/')
+        return redirect(destino)

@@ -10,4 +10,7 @@ urlpatterns = [
     path('<int:pk>/password/', views.UsuarioSetPasswordView.as_view(), name='password'),
     path('<int:pk>/toggle/', views.UsuarioToggleActivoView.as_view(), name='toggle'),
     path('accesos/', views.RegistroAccesoListView.as_view(), name='accesos'),
+    path('backups/', views.BackupListView.as_view(), name='backups'),
+    path('backups/generar/', views.BackupGenerarView.as_view(), name='backups_generar'),
+    path('backups/<str:nombre>/descargar/', views.BackupDescargarView.as_view(), name='backups_descargar'),
 ]

@@ -213,6 +213,14 @@
             <i class="bi bi-clock-history"></i> Registro de accesos
           </a>
         </li>
+        {% if request.user.is_superuser %}
+        <li>
+          <a class="nav-link {% if '/usuarios/backups' in p %}active{% endif %}"
+             href="{% url 'usuarios:backups' %}">
+            <i class="bi bi-hdd-network"></i> Backups
+          </a>
+        </li>
+        {% endif %}
       </ul>
     </div>
   </li>

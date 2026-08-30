@@ -163,3 +163,45 @@ def has_delete_permission(self, request, obj=None):
 ```
 
 Tests agregados a `UsuarioAdminTests` (18 → 22 tests en total): un staff con permiso `change_usuario` no puede editar a un superusuario pero sí a otro usuario normal; un staff con `delete_usuario` no puede borrar a un superusuario; un superusuario sí puede editar a otro superusuario (caso de control, para no romper la gestión legítima entre superusuarios técnicos).
+
+---
+
+## Sesión 2026-08-30 (cont. 2) — Backup desde el navegador (botón + listado/descarga)
+
+Directriz del usuario: el superusuario técnico de Django (`is_superuser=True` — se descartó explícitamente crear un rol de negocio nuevo para esto) debe poder generar un backup manual con un botón y descargar backups existentes desde la web. Alcance acotado por el usuario: **sin** programación de periodicidad desde la web — eso sigue siendo cron/Task Scheduler del sistema operativo, tal como documenta `backup_bd.py`.
+
+### Refactor previo (sin cambiar comportamiento, tests existentes se mantienen verdes)
+
+El cuerpo de `backup_bd.py` se movió a `usuarios/backup.py` para que tanto el management command como la vista web usen la misma lógica sin duplicarla:
+
+- `generar_backup(destino=None)` — genera el dump con `pg_dump -F c`, lanza `BackupError` (no `CommandError`, que es específico de management commands) si el motor no es PostgreSQL o si `pg_dump` falla.
+- `listar_backups()` — devuelve `BackupInfo(nombre, tamano, fecha)` por cada archivo en `BASE_DIR/backups`, ordenados por fecha descendente.
+- `get_backup_dir()` — helper para la ruta de la carpeta.
+
+`backup_bd.py` (el comando) quedó como un wrapper delgado: llama `generar_backup()` y traduce `BackupError` a `CommandError`. Los 3 tests de `BackupBdCommandTests` se mantuvieron sin cambio de comportamiento, solo se movió el objetivo del `@patch` de `usuarios.management.commands.backup_bd.subprocess.run` a `usuarios.backup.subprocess.run`.
+
+### Decisiones de diseño (a documentar, según lo pedido)
+
+| Decisión | Motivo |
+|---|---|
+| Mixin nuevo `SuperusuarioRequiredMixin` (`usuarios/mixins.py`), no reutilizar `RolRequiredMixin` | `RolRequiredMixin` está pensado para roles de negocio (ADMIN/PROD/DIST) y ya trata a cualquier `is_superuser` como acceso total a todo. Backups es una función administrativa del sistema que ni siquiera el rol de negocio ADMIN debe poder ejecutar — necesita su propio chequeo estricto de `is_superuser`, independiente del campo `rol` |
+| `BackupError` (excepción propia en `usuarios/backup.py`) en vez de `CommandError` en la capa compartida | `CommandError` es específico de `django.core.management` y no tiene sentido en una vista web; la vista atrapa `BackupError` y muestra `messages.error()` en vez de dejar que la petición HTTP falle con 500 |
+| Descarga valida `nombre` contra `{b.nombre for b in listar_backups()}` en vez de confiar en el parámetro de la URL | Defensa contra path traversal: aunque el nombre del archivo generado siempre sigue el patrón `brisas_pacande_<timestamp>.dump`, la vista de descarga no asume eso — solo sirve un archivo cuyo nombre exacto ya apareció en el listado real de la carpeta de backups, así que un parámetro `../../config/settings.py` nunca coincide con el set y devuelve 404 antes de tocar el filesystem con ese valor |
+| `FileResponse(..., as_attachment=True, filename=nombre)` | Fuerza la descarga (no intenta previsualizar un `.dump` binario en el navegador) |
+| Botón "Generar backup ahora" en la misma pantalla del listado, sin programación de periodicidad en la UI | Alcance explícito del usuario — la periodicidad sigue siendo responsabilidad de cron/Task Scheduler en el servidor de despliegue |
+
+### Vistas y rutas nuevas
+
+| Vista | URL | Acceso |
+|---|---|---|
+| `BackupListView` | `/usuarios/backups/` | Solo superusuario — lista con nombre, tamaño (`filesizeformat`), fecha y enlace de descarga |
+| `BackupGenerarView` | `POST /usuarios/backups/generar/` | Solo superusuario — llama `generar_backup()`, mensaje de éxito o error, redirige a la lista |
+| `BackupDescargarView` | `/usuarios/backups/<nombre>/descargar/` | Solo superusuario — 404 si `nombre` no está en el listado real |
+
+Enlace "Backups" agregado al sidebar (`templates/includes/sidebar_nav.html`), visible solo si `request.user.is_superuser`.
+
+### Tests agregados
+
+`BackupViewsTests` (9 tests, `usuarios/tests.py` 22 → 31 en total): rechazo a admin de negocio no-superusuario (lista, generar, descargar), acceso permitido a superusuario, listado muestra archivos existentes (con `override_settings(BASE_DIR=...)` + `tempfile.TemporaryDirectory` para no tocar backups reales), generar llama `generar_backup` y redirige, generar con `BackupError` no crashea (verifica que sigue redirigiendo en vez de 500), descarga devuelve el contenido exacto del archivo, descarga con nombre no listado (simulando un intento de path traversal) devuelve 404.
+
+`python manage.py test` completo: 99/99 en verde. `python manage.py check`: sin issues.

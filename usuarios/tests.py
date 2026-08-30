@@ -90,8 +90,87 @@ class AdminPasswordResetFormTests(TestCase):
         self.assertIn('password1', form.errors)
 
 
+class BackupViewsTests(UsuarioTestMixin, TestCase):
+    def setUp(self):
+        self.superuser = Usuario.objects.create_superuser(
+            username='superadmin_web', password='brisas2024',
+        )
+        self.admin_negocio = self.crear_admin(username='maximino2')
+
+    def test_lista_rechaza_a_admin_de_negocio_no_superusuario(self):
+        self.client.force_login(self.admin_negocio)
+        response = self.client.get(reverse('usuarios:backups'))
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_lista_permite_a_superusuario(self):
+        self.client.force_login(self.superuser)
+        response = self.client.get(reverse('usuarios:backups'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_lista_muestra_los_backups_existentes(self):
+        self.client.force_login(self.superuser)
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / 'backups').mkdir()
+            (Path(tmp) / 'backups' / 'brisas_pacande_20260101_000000.dump').write_bytes(b'x' * 100)
+            with override_settings(BASE_DIR=Path(tmp)):
+                response = self.client.get(reverse('usuarios:backups'))
+            self.assertContains(response, 'brisas_pacande_20260101_000000.dump')
+
+    @patch('usuarios.views.generar_backup')
+    def test_generar_llama_a_generar_backup_y_redirige(self, mock_generar):
+        mock_generar.return_value = Path('brisas_pacande_20260101_000000.dump')
+        self.client.force_login(self.superuser)
+        response = self.client.post(reverse('usuarios:backups_generar'))
+        self.assertTrue(mock_generar.called)
+        self.assertRedirects(response, reverse('usuarios:backups'))
+
+    @patch('usuarios.views.generar_backup')
+    def test_generar_con_pg_dump_fallido_no_crashea(self, mock_generar):
+        from usuarios.backup import BackupError
+        mock_generar.side_effect = BackupError('pg_dump falló: conexion rechazada')
+        self.client.force_login(self.superuser)
+        response = self.client.post(reverse('usuarios:backups_generar'))
+        self.assertRedirects(response, reverse('usuarios:backups'))
+
+    def test_generar_rechaza_a_no_superusuario(self):
+        self.client.force_login(self.admin_negocio)
+        response = self.client.post(reverse('usuarios:backups_generar'))
+        self.assertNotEqual(response.status_code, 200)
+
+    def test_descargar_devuelve_el_archivo(self):
+        self.client.force_login(self.superuser)
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / 'backups').mkdir()
+            (Path(tmp) / 'backups' / 'brisas_pacande_20260101_000000.dump').write_bytes(b'contenido-dump')
+            with override_settings(BASE_DIR=Path(tmp)):
+                response = self.client.get(
+                    reverse('usuarios:backups_descargar', args=['brisas_pacande_20260101_000000.dump'])
+                )
+                contenido = b''.join(response.streaming_content)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(contenido, b'contenido-dump')
+
+    def test_descargar_con_nombre_no_listado_devuelve_404(self):
+        self.client.force_login(self.superuser)
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / 'backups').mkdir()
+            (Path(tmp) / 'backups' / 'brisas_pacande_20260101_000000.dump').write_bytes(b'x')
+            with override_settings(BASE_DIR=Path(tmp)):
+                response = self.client.get(
+                    reverse('usuarios:backups_descargar', args=['..%2F..%2Fsettings.py'])
+                )
+            self.assertEqual(response.status_code, 404)
+
+    def test_descargar_rechaza_a_no_superusuario(self):
+        self.client.force_login(self.admin_negocio)
+        response = self.client.get(
+            reverse('usuarios:backups_descargar', args=['brisas_pacande_20260101_000000.dump'])
+        )
+        self.assertNotEqual(response.status_code, 200)
+
+
 class BackupBdCommandTests(TestCase):
-    @patch('usuarios.management.commands.backup_bd.subprocess.run')
+    @patch('usuarios.backup.subprocess.run')
     def test_genera_dump_llamando_pg_dump(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stderr='')
         with tempfile.TemporaryDirectory() as tmp:
@@ -102,7 +181,7 @@ class BackupBdCommandTests(TestCase):
             archivos = list(Path(tmp).iterdir())
             self.assertEqual(len(archivos), 0)  # pg_dump está mockeado, no crea el archivo real
 
-    @patch('usuarios.management.commands.backup_bd.subprocess.run')
+    @patch('usuarios.backup.subprocess.run')
     def test_pg_dump_con_error_lanza_commanderror(self, mock_run):
         mock_run.return_value = MagicMock(returncode=1, stderr='conexion rechazada')
         with tempfile.TemporaryDirectory() as tmp:

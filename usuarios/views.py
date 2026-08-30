@@ -1,12 +1,14 @@
 from django.contrib import messages
 from django.db import models
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import ListView, CreateView, UpdateView
 
+from .backup import BackupError, generar_backup, get_backup_dir, listar_backups
 from .forms import UsuarioCreateForm, UsuarioUpdateForm, AdminPasswordResetForm
-from .mixins import RolRequiredMixin, SOLO_ADMIN
+from .mixins import RolRequiredMixin, SOLO_ADMIN, SuperusuarioRequiredMixin
 from .models import Usuario, RegistroAcceso
 
 
@@ -120,6 +122,30 @@ class UsuarioToggleActivoView(RolRequiredMixin, View):
         estado = 'activado' if usuario.is_active else 'desactivado'
         messages.success(request, f'Usuario "{usuario.username}" {estado}.')
         return redirect('usuarios:lista')
+
+
+class BackupListView(SuperusuarioRequiredMixin, View):
+    def get(self, request):
+        return render(request, 'usuarios/backups.html', {'backups': listar_backups()})
+
+
+class BackupGenerarView(SuperusuarioRequiredMixin, View):
+    def post(self, request):
+        try:
+            archivo = generar_backup()
+            messages.success(request, f'Backup generado: {archivo.name}')
+        except BackupError as e:
+            messages.error(request, f'No se pudo generar el backup: {e}')
+        return redirect('usuarios:backups')
+
+
+class BackupDescargarView(SuperusuarioRequiredMixin, View):
+    def get(self, request, nombre):
+        nombres_validos = {b.nombre for b in listar_backups()}
+        if nombre not in nombres_validos:
+            raise Http404
+        ruta = get_backup_dir() / nombre
+        return FileResponse(open(ruta, 'rb'), as_attachment=True, filename=nombre)
 
 
 class RegistroAccesoListView(RolRequiredMixin, ListView):

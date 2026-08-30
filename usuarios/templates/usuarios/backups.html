@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Backups de base de datos — Brisas de Pacandé{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h4 class="mb-0"><i class="bi bi-hdd-network me-2"></i>Backups de base de datos</h4>
+  <form method="post" action="{% url 'usuarios:backups_generar' %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary btn-sm">
+      <i class="bi bi-download me-1"></i>Generar backup ahora
+    </button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Archivo</th>
+          <th>Tamaño</th>
+          <th>Fecha</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in backups %}
+        <tr>
+          <td class="fw-semibold small">{{ b.nombre }}</td>
+          <td class="small text-muted">{{ b.tamano|filesizeformat }}</td>
+          <td class="small text-muted">{{ b.fecha|date:"d/m/Y H:i:s" }}</td>
+          <td class="text-end">
+            <a href="{% url 'usuarios:backups_descargar' b.nombre %}" class="btn btn-outline-primary btn-sm" title="Descargar">
+              <i class="bi bi-file-earmark-arrow-down"></i>
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="4" class="text-center text-muted py-4">No hay backups generados todavía.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="text-muted small mt-3">
+  La programación periódica se hace con cron (Linux) o el Programador de tareas (Windows) del servidor de despliegue,
+  no desde esta pantalla. Ver <code>usuarios/management/commands/backup_bd.py</code> para el detalle.
+</p>
+{% endblock %}
