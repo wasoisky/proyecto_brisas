@@ -51,6 +51,21 @@ class EntregaForm(forms.ModelForm):
             'devolucion': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
         }
 
+    def clean(self):
+        cleaned_data = super().clean()
+        cliente = cleaned_data.get('cliente')
+        producto = cleaned_data.get('producto')
+        if cliente and producto:
+            try:
+                precio = PrecioPorCategoria.objects.get(categoria=cliente.categoria, producto=producto)
+            except PrecioPorCategoria.DoesNotExist:
+                raise forms.ValidationError(
+                    f'No hay precio configurado para la categoría {cliente.get_categoria_display()} '
+                    f'y el producto {producto.nombre}.'
+                )
+            cleaned_data['precio_unitario'] = precio.precio
+        return cleaned_data
+
 
 class AveriaForm(forms.ModelForm):
     class Meta:

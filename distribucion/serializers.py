@@ -49,6 +49,20 @@ class EntregaSerializer(serializers.ModelSerializer):
     def get_subtotal(self, obj):
         return float(obj.subtotal)
 
+    def validate(self, data):
+        cliente = data.get('cliente')
+        producto = data.get('producto')
+        if cliente and producto:
+            try:
+                precio = PrecioPorCategoria.objects.get(categoria=cliente.categoria, producto=producto)
+            except PrecioPorCategoria.DoesNotExist:
+                raise serializers.ValidationError(
+                    f'No hay precio configurado para la categoría {cliente.get_categoria_display()} '
+                    f'y el producto {producto.nombre}.'
+                )
+            data['precio_unitario'] = precio.precio
+        return data
+
     def create(self, validated_data):
         entrega = super().create(validated_data)
         if entrega.modalidad_pago == Entrega.ModalidadPago.CREDITO:
