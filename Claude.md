@@ -62,8 +62,10 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 - Mixin `RolRequiredMixin` aplicado a todas las vistas (no rehacer)
 - Template tags personalizados en `usuarios/templatetags/`
 - Log de accesos visible en `accesos.html`
-- `usuarios/tests.py`: 22 tests (mixins, `AdminPasswordResetForm`, `UsuarioUpdateView`, `UsuarioAdmin`, `backup_bd`) — todos en verde
-- **Backup de PostgreSQL**: `python manage.py backup_bd [--destino RUTA]` genera dump con `pg_dump -F c`; procedimiento de restauración (`pg_restore`) documentado en el docstring del comando y en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md) — cierra el riesgo crítico §13.3 del documento de tesis
+- `usuarios/tests.py`: 31 tests (mixins, `AdminPasswordResetForm`, `UsuarioUpdateView`, `UsuarioAdmin`, `backup_bd`, `BackupViewsTests`) — todos en verde
+- **Backup de PostgreSQL**: lógica compartida en `usuarios/backup.py` (`generar_backup`, `listar_backups`) — cierra el riesgo crítico §13.3 del documento de tesis con dos frentes:
+  - CLI: `python manage.py backup_bd [--destino RUTA]` (`pg_dump -F c`); procedimiento de restauración (`pg_restore`) en el docstring del comando y en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md)
+  - Web (solo superusuario `is_superuser=True`, mixin `SuperusuarioRequiredMixin`): `/usuarios/backups/` lista/descarga backups existentes + botón "Generar backup ahora"; sin programación de periodicidad desde la UI a propósito (sigue siendo cron/Task Scheduler)
 - `UsuarioAdmin.has_change_permission()`/`has_delete_permission()` bloquean editar/borrar a un superusuario desde `/admin/` si quien lo intenta no es superusuario (U-07)
 - Bitácora detallada de sesiones en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md); los 7 bugs de code review/seguridad (U-01 a U-07) quedaron resueltos — ver sección 6
 
@@ -138,6 +140,9 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 | `EntregaForm.clean()` / `EntregaSerializer.validate()` reemplazan `precio_unitario` por el de `PrecioPorCategoria`, ignorando el valor recibido en el POST/JSON | El precio solo se autocompletaba por JS en el cliente; nada validaba en servidor que respetara la categoría (regla 2, sección 9) — un valor manipulado se guardaba tal cual |
 | "Regalías" = producto terminado entregado sin cobro (obsequio/cortesía/promoción); modelo `Regalia` no descuenta ningún contador de stock | Confirmado con el usuario (§8.6.5 Tabla 3 no lo definía). `Producto` no lleva `stock_actual` (a diferencia de `Insumo`), así que es un registro de trazabilidad, no un movimiento de inventario |
 | HU-13: `detectar_pv`/`detectar_vi` cubren "producidas/vendidas/disponibles" comparando flujo del periodo y disponible acumulado calculado al vuelo (sin modelo de stock de producto terminado); `detectar_ac` (conservación de conteo de activos BOT/CAN) se mantiene pero se documenta como verificación de calidad extra, no como requisito textual de HU-13 | No hay vínculo por-entrega entre `Entrega` y `ActivoRetornable` (botellón se intercambia mano a mano sin registro individual, regla 7) — cruzar ventas contra activos sería adivinar, no comparar datos reales |
+| Backup web restringido a `is_superuser=True` con mixin nuevo `SuperusuarioRequiredMixin`, no `RolRequiredMixin` | El usuario descartó explícitamente un rol de negocio nuevo; `RolRequiredMixin` ya trata cualquier `is_superuser` como acceso total, así que no sirve para exigir *específicamente* superusuario técnico (ni el rol de negocio ADMIN debe poder generar/descargar backups) |
+| `usuarios/backup.py` extrae la lógica de `backup_bd.py` en funciones reutilizables (`generar_backup`, `listar_backups`) con excepción propia `BackupError` | El comando CLI y la vista web comparten la misma lógica sin duplicarla; `BackupError` (no `CommandError`, específico de management commands) permite que la vista muestre `messages.error()` en vez de un 500 |
+| Descarga de backups valida el nombre de archivo contra el listado real (`{b.nombre for b in listar_backups()}`), no contra el parámetro crudo de la URL | Defensa contra path traversal: un nombre que no apareció en el listado real de `BASE_DIR/backups` nunca llega a tocar el filesystem con ese valor, devuelve 404 |
 | `Descuadre.es_automatico` (bool) en vez de un estado "propuesto" separado | Los hallazgos automáticos se crean directo y el admin los resuelve igual que los manuales; evita un flujo de aprobación adicional para una tesis de cronograma corto |
 
 ---
