@@ -17,6 +17,10 @@ media/
 staticfiles/
 local_settings.py
 
+# Backups de base de datos (usuarios/management/commands/backup_bd.py)
+/backups/
+*.dump
+
 # Environment variables
 .env
 .env.local
