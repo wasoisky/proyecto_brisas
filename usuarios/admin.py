@@ -11,6 +11,12 @@ class UsuarioAdmin(UserAdmin):
         ('Brisas de Pacandé', {'fields': ('rol', 'telefono')}),
     )
 
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        if obj is not None and obj.pk == request.user.pk:
+            readonly.append('rol')
+        return readonly
+
 
 @admin.register(RegistroAcceso)
 class RegistroAccesoAdmin(admin.ModelAdmin):

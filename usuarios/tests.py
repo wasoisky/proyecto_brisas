@@ -1,6 +1,14 @@
-from django.test import TestCase, override_settings
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+from django.contrib.admin.sites import AdminSite
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
+from .admin import UsuarioAdmin
 from .models import Usuario
 from .mixins import TODOS, ADMIN_PROD, SOLO_ADMIN, ADMIN_DIST, RolRequiredMixin
 from .forms import AdminPasswordResetForm
@@ -67,6 +75,74 @@ class AdminPasswordResetFormTests(TestCase):
         )
         self.assertFalse(form.is_valid())
 
+    @override_settings(AUTH_PASSWORD_VALIDATORS=[
+        {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    ])
+    def test_contrasena_similar_al_username_es_rechazada(self):
+        usuario = Usuario(username='nicolas', first_name='Nicolas', last_name='Diaz')
+        form = AdminPasswordResetForm(
+            data={'password1': 'nicolas123', 'password2': 'nicolas123'},
+            usuario=usuario,
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn('password1', form.errors)
+
+
+class BackupBdCommandTests(TestCase):
+    @patch('usuarios.management.commands.backup_bd.subprocess.run')
+    def test_genera_dump_llamando_pg_dump(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stderr='')
+        with tempfile.TemporaryDirectory() as tmp:
+            call_command('backup_bd', destino=tmp)
+            self.assertTrue(mock_run.called)
+            comando = mock_run.call_args.args[0]
+            self.assertEqual(comando[0], 'pg_dump')
+            archivos = list(Path(tmp).iterdir())
+            self.assertEqual(len(archivos), 0)  # pg_dump está mockeado, no crea el archivo real
+
+    @patch('usuarios.management.commands.backup_bd.subprocess.run')
+    def test_pg_dump_con_error_lanza_commanderror(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=1, stderr='conexion rechazada')
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(CommandError):
+                call_command('backup_bd', destino=tmp)
+
+    @override_settings(DATABASES={
+        'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': 'x'},
+    })
+    def test_motor_no_postgresql_lanza_commanderror(self):
+        with self.assertRaises(CommandError):
+            call_command('backup_bd')
+
+
+class UsuarioAdminTests(UsuarioTestMixin, TestCase):
+    def setUp(self):
+        self.site = AdminSite()
+        self.model_admin = UsuarioAdmin(Usuario, self.site)
+        self.factory = RequestFactory()
+
+    def test_rol_es_readonly_al_editar_su_propio_usuario(self):
+        admin = self.crear_admin()
+        request = self.factory.get(f'/admin/usuarios/usuario/{admin.pk}/change/')
+        request.user = admin
+        readonly = self.model_admin.get_readonly_fields(request, obj=admin)
+        self.assertIn('rol', readonly)
+
+    def test_rol_no_es_readonly_al_editar_otro_usuario(self):
+        admin = self.crear_admin()
+        otro = self.crear_usuario('nicolas', rol='PROD')
+        request = self.factory.get(f'/admin/usuarios/usuario/{otro.pk}/change/')
+        request.user = admin
+        readonly = self.model_admin.get_readonly_fields(request, obj=otro)
+        self.assertNotIn('rol', readonly)
+
+    def test_rol_no_es_readonly_al_crear_usuario_nuevo(self):
+        admin = self.crear_admin()
+        request = self.factory.get('/admin/usuarios/usuario/add/')
+        request.user = admin
+        readonly = self.model_admin.get_readonly_fields(request, obj=None)
+        self.assertNotIn('rol', readonly)
+
 
 class UsuarioUpdateViewTests(UsuarioTestMixin, TestCase):
     def setUp(self):
@@ -106,13 +182,51 @@ class UsuarioUpdateViewTests(UsuarioTestMixin, TestCase):
         otro.refresh_from_db()
         self.assertEqual(otro.rol, 'DIST')
 
-    def test_editar_superusuario_redirige_a_lista(self):
+    def test_get_editar_superusuario_retorna_404(self):
         super_user = Usuario.objects.create_superuser(
             username='superadmin',
             password='brisas2024',
         )
         response = self.client.get(reverse('usuarios:editar', args=[super_user.pk]))
-        self.assertRedirects(response, reverse('usuarios:lista'))
+        self.assertEqual(response.status_code, 404)
+
+    def test_post_editar_superusuario_retorna_404(self):
+        super_user = Usuario.objects.create_superuser(
+            username='superadmin2',
+            password='brisas2024',
+        )
+        response = self.client.post(
+            reverse('usuarios:editar', args=[super_user.pk]),
+            data={
+                'first_name': 'Hackeado',
+                'last_name': 'Test',
+                'email': '',
+                'telefono': '',
+                'rol': 'ADMIN',
+                'is_active': True,
+            },
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_auto_edicion_con_rol_y_activo_invalidos_muestra_ambos_errores(self):
+        response = self.client.post(
+            reverse('usuarios:editar', args=[self.admin.pk]),
+            data={
+                'first_name': 'Admin',
+                'last_name': 'Test',
+                'email': '',
+                'telefono': '',
+                'rol': 'PROD',
+                'is_active': False,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        form = response.context['form']
+        self.assertIn('rol', form.errors)
+        self.assertIn('is_active', form.errors)
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.rol, 'ADMIN')
+        self.assertTrue(self.admin.is_active)
 
     def test_get_editar_usuario_normal_renderiza_formulario(self):
         otro = self.crear_usuario('cesar', rol='PROD')

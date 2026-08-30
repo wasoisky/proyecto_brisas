@@ -92,10 +92,49 @@ Esto elimina el `return None` antipatrón y cierra el crash del POST en una sola
 
 ---
 
-## Backlog futuro
+## Sesión 2026-08-30 — U-01 a U-06 + backup crítico de PostgreSQL
 
-- [ ] U-01 Agregar `post()` guard + reemplazar `get_object()` con `get_object_or_404` (U-05)
-- [ ] U-02 Pasar `user=usuario` a `validate_password` en `AdminPasswordResetForm`
-- [ ] U-03 Marcar `rol` como `readonly_fields` en `UsuarioAdmin` o agregar `save_model()` con la misma restricción
-- [ ] U-04 Unificar mecanismo de error: solo `form.add_error` en guards de `form_valid()`
-- [ ] U-06 Consolidar los dos guards de auto-protección en un solo bloque `if`
+Directrices recibidas de la sesión general (orquestando las 5 sesiones paralelas del proyecto) tras auditoría documento-vs-código. TDD estricto: cada fix con test rojo verificado antes de tocar producción.
+
+### Fixes implementados (TDD)
+
+| ID | Archivo | Cambio | Test que lo prueba |
+|----|---------|--------|---------------------|
+| U-01 + U-05 | `views.py` — `UsuarioUpdateView.get_object()` | Reemplazado el `get_object()` que devolvía `None` (+ `get()` custom) por `get_object_or_404(Usuario, pk=self.kwargs['pk'], is_superuser=False)`. Ya no hace falta sobrescribir `get()`: `BaseUpdateView` llama `get_object()` tanto en GET como en POST. | `test_get_editar_superusuario_retorna_404`, `test_post_editar_superusuario_retorna_404` |
+| U-02 | `forms.py` — `AdminPasswordResetForm` | Constructor acepta `usuario=None`; `clean()` llama `validate_password(p1, user=self.usuario)`. `views.py` (`UsuarioSetPasswordView`) pasa `usuario=usuario` en `GET` y `POST`. | `test_contrasena_similar_al_username_es_rechazada` |
+| U-03 | `admin.py` — `UsuarioAdmin` | `get_readonly_fields()` agrega `'rol'` a los campos de solo lectura cuando `obj.pk == request.user.pk` (el admin está editando su propia cuenta desde `/admin/`). | `UsuarioAdminTests` (3 tests: readonly en auto-edición, no readonly en otros, no readonly al crear) |
+| U-04 + U-06 | `views.py` — `UsuarioUpdateView.form_valid()` | Los dos guards de auto-protección (desactivar cuenta propia, cambiar rol propio) se evalúan ambos en el mismo bloque, cada uno con `form.add_error()`; se retorna `form_invalid` solo si `form.errors` quedó no vacío. Elimina el `messages.error` duplicado y la pérdida del segundo error. | `test_auto_edicion_con_rol_y_activo_invalidos_muestra_ambos_errores` |
+
+**Hallazgo durante TDD (más grave de lo documentado):** el bug U-01 no solo crasheaba con `AttributeError` cuando el formulario era inválido — con datos de formulario **válidos**, un POST a un pk de superusuario pasaba `instance=None` al `ModelForm`, que Django interpreta como "crear una instancia nueva". El resultado era un usuario fantasma activo con `username=''` guardado silenciosamente en la base de datos, sin que el atacante necesitara enviar datos inválidos. El fix (`get_object_or_404`) cierra ambas rutas porque el 404 ocurre antes de construir el formulario.
+
+### Tests agregados
+
+`usuarios/tests.py` pasó de 9 a 18 tests: `UsuarioAdminTests` (3, nueva clase), `BackupBdCommandTests` (3, nueva clase), más 4 tests nuevos/reescritos en `UsuarioUpdateViewTests` y `AdminPasswordResetFormTests`. Los 9 tests originales permanecen verdes (2 renombrados para reflejar el nuevo contrato 404 en vez de redirect).
+
+### Backup de PostgreSQL (riesgo crítico §13.3, nivel 15)
+
+Nuevo comando `usuarios/management/commands/backup_bd.py`:
+
+```bash
+python manage.py backup_bd                    # dump en BASE_DIR/backups/
+python manage.py backup_bd --destino /ruta     # dump en carpeta custom
+```
+
+- Usa `pg_dump -F c` (formato custom, comprimido) leyendo host/puerto/usuario/nombre de BD desde `settings.DATABASES['default']` y `PGPASSWORD` vía variable de entorno (no en argv, no queda en `ps`/logs del shell).
+- Falla con `CommandError` si el motor no es `django.db.backends.postgresql` o si `pg_dump` retorna código de error distinto de 0.
+- Tests (`BackupBdCommandTests`) mockean `subprocess.run` — no requieren el binario `pg_dump` instalado en CI.
+
+**Procedimiento de restauración:**
+```bash
+pg_restore --clean --if-exists -h HOST -p PORT -U USER -d NOMBRE_BD archivo.dump
+```
+`--clean --if-exists` permite restaurar sobre una base ya existente sin fallar por objetos duplicados.
+
+**Programación periódica (pendiente de configurar en el servidor de despliegue, no en este repo):**
+- Linux/cron: `0 3 * * * cd /ruta/proyecto && venv/bin/python manage.py backup_bd`
+- Windows Task Scheduler: acción diaria ejecutando `venv\Scripts\python.exe manage.py backup_bd` con directorio de inicio en la raíz del proyecto.
+
+### Pendiente (fuera de alcance de esta sesión)
+
+- Bitácora de auditoría CRUD (RS-04) — decisión de diseño transversal a varios módulos, requiere consulta directa con el usuario antes de implementar (ver CLAUDE.md sección 7).
+- Rotación/purga de dumps antiguos en `backup_bd` — no había requisito explícito; se puede agregar si el volumen de backups se vuelve un problema real.

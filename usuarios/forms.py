@@ -41,6 +41,10 @@ class AdminPasswordResetForm(forms.Form):
         widget=forms.PasswordInput(attrs={'class': 'form-control', 'autocomplete': 'new-password'}),
     )
 
+    def __init__(self, *args, usuario=None, **kwargs):
+        self.usuario = usuario
+        super().__init__(*args, **kwargs)
+
     def clean(self):
         cleaned = super().clean()
         p1 = cleaned.get('password1')
@@ -49,7 +53,7 @@ class AdminPasswordResetForm(forms.Form):
             raise forms.ValidationError('Las contraseñas no coinciden.')
         if p1:
             try:
-                validate_password(p1)
+                validate_password(p1, user=self.usuario)
             except forms.ValidationError as e:
                 self.add_error('password1', e)
         return cleaned

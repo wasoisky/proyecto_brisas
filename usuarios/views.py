@@ -64,26 +64,16 @@ class UsuarioUpdateView(RolRequiredMixin, UpdateView):
     success_url = reverse_lazy('usuarios:lista')
 
     def get_object(self, queryset=None):
-        obj = super().get_object(queryset)
-        if obj.is_superuser:
-            messages.error(self.request, 'No se puede editar un superusuario desde aquí.')
-            return None
-        return obj
-
-    def get(self, request, *args, **kwargs):
-        self.object = self.get_object()
-        if self.object is None:
-            return redirect('usuarios:lista')
-        return self.render_to_response(self.get_context_data())
+        return get_object_or_404(Usuario, pk=self.kwargs['pk'], is_superuser=False)
 
     def form_valid(self, form):
         usuario = form.save(commit=False)
-        if usuario.pk == self.request.user.pk and not form.cleaned_data.get('is_active', True):
-            messages.error(self.request, 'No puedes desactivar tu propia cuenta.')
-            return self.form_invalid(form)
-        if usuario.pk == self.request.user.pk and form.cleaned_data.get('rol') != 'ADMIN':
-            messages.error(self.request, 'No puedes cambiar tu propio rol.')
+        es_auto_edicion = usuario.pk == self.request.user.pk
+        if es_auto_edicion and not form.cleaned_data.get('is_active', True):
+            form.add_error('is_active', 'No puedes desactivar tu propia cuenta.')
+        if es_auto_edicion and form.cleaned_data.get('rol') != 'ADMIN':
             form.add_error('rol', 'No puedes cambiar tu propio rol.')
+        if form.errors:
             return self.form_invalid(form)
         usuario.save()
         messages.success(self.request, f'Usuario "{usuario.username}" actualizado.')
@@ -103,12 +93,12 @@ class UsuarioSetPasswordView(RolRequiredMixin, View):
 
     def get(self, request, pk):
         usuario = self._get_usuario(pk)
-        form = AdminPasswordResetForm()
+        form = AdminPasswordResetForm(usuario=usuario)
         return render(request, 'usuarios/password_form.html', {'form': form, 'usuario': usuario})
 
     def post(self, request, pk):
         usuario = self._get_usuario(pk)
-        form = AdminPasswordResetForm(request.POST)
+        form = AdminPasswordResetForm(request.POST, usuario=usuario)
         if form.is_valid():
             usuario.set_password(form.cleaned_data['password1'])
             usuario.save()
