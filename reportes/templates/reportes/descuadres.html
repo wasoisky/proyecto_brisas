@@ -87,7 +87,10 @@
                 {% else %}<span class="badge bg-secondary">Leve</span>{% endif %}
               </td>
               <td class="text-end">{{ d.diferencia }}</td>
-              <td class="small">{{ d.descripcion|truncatechars:60 }}</td>
+              <td class="small">
+                {% if d.es_automatico %}<span class="badge bg-info text-dark me-1">Automático</span>{% endif %}
+                {{ d.descripcion|truncatechars:60 }}
+              </td>
               <td class="text-center">
                 {% if d.resuelto %}<span class="badge bg-success">Resuelto</span>
                 {% else %}<span class="badge bg-danger">Pendiente</span>{% endif %}

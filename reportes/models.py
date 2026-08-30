@@ -20,6 +20,10 @@ class Descuadre(models.Model):
     diferencia = models.DecimalField(max_digits=12, decimal_places=2,
                                      help_text='Valor numérico de la diferencia detectada')
     resuelto = models.BooleanField(default=False)
+    es_automatico = models.BooleanField(
+        default=False,
+        help_text='True si fue generado por la detección automática (HU-13), no registrado a mano',
+    )
     detectado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,

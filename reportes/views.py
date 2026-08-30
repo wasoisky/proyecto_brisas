@@ -17,6 +17,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from distribucion.models import Planilla, Entrega, Credito
 from produccion.models import Produccion, Insumo
 from usuarios.models import Usuario
+from .detector import ejecutar_deteccion
 from .forms import DescuadreForm, FiltroVentasForm
 from .models import Descuadre
 
@@ -230,6 +231,25 @@ class DescuadreResolverView(RolRequiredMixin, View):
             descuadre.resuelto_en = timezone.now()
             descuadre.save(update_fields=['resuelto', 'resuelto_en'])
             messages.success(request, 'Descuadre marcado como resuelto.')
+        return redirect('reportes:descuadres')
+
+
+class DetectarDescuadresView(RolRequiredMixin, View):
+    """Dispara la detección automática de descuadres (HU-13) sobre el mes en
+    curso y crea los Descuadre encontrados con es_automatico=True."""
+    roles_permitidos = SOLO_ADMIN
+
+    def post(self, request):
+        hoy = date.today()
+        inicio_mes = hoy.replace(day=1)
+        creados = ejecutar_deteccion(inicio_mes, hoy, request.user)
+        if creados:
+            messages.success(
+                request,
+                f'Se detectaron {len(creados)} descuadre(s) automático(s) del mes en curso.',
+            )
+        else:
+            messages.info(request, 'No se detectaron descuadres nuevos en el mes en curso.')
         return redirect('reportes:descuadres')
 
 

@@ -104,6 +104,7 @@
 
 {% block extra_js %}
 <script>
+const urlPagarBase = "{% url 'reportes:credito_pagar' pk=999999 %}";
 document.getElementById('modalPago').addEventListener('show.bs.modal', function (e) {
   const btn = e.relatedTarget;
   const pk = btn.getAttribute('data-pk');
@@ -113,7 +114,7 @@ document.getElementById('modalPago').addEventListener('show.bs.modal', function 
   document.getElementById('spanSaldo').textContent = parseFloat(saldo).toFixed(0);
   document.getElementById('inputMontoPago').max = saldo;
   document.getElementById('inputMontoPago').value = parseFloat(saldo).toFixed(2);
-  document.getElementById('formPago').action = `/reportes/creditos/${pk}/pagar/`;
+  document.getElementById('formPago').action = urlPagarBase.replace('999999', pk);
 });
 </script>
 {% endblock %}

@@ -99,6 +99,12 @@
            class="list-group-item list-group-item-action">
           <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Ventas del mes — PDF
         </a>
+        <form method="post" action="{% url 'reportes:descuadre_detectar' %}" class="list-group-item">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-danger w-100 text-start">
+            <i class="bi bi-search me-2"></i>Detectar descuadres (mes en curso)
+          </button>
+        </form>
       </div>
     </div>
   </div>
