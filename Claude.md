@@ -186,6 +186,7 @@ PRODUCCIÓN
   RecetaProducto    id | FK:producto | FK:insumo | cantidad_por_unidad  [NUEVO]
 
 ACTIVOS
+  ActivoRetornable  id | tipo(BOT/CAN) | estado(PLL/PVA/CLI/BAJ) | activo  [faltaba en este listado]
   MovimientoActivo  id | fecha | momento(INI/FIN) | tipo_activo(BOT/CAN) |
                     cantidad_en_planta_lleno | cantidad_en_planta_vacio |
                     cantidad_en_clientes | cantidad_baja
