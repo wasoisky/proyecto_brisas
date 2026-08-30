@@ -17,6 +17,16 @@ class UsuarioAdmin(UserAdmin):
             readonly.append('rol')
         return readonly
 
+    def has_change_permission(self, request, obj=None):
+        if obj is not None and obj.is_superuser and not request.user.is_superuser:
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj is not None and obj.is_superuser and not request.user.is_superuser:
+            return False
+        return super().has_delete_permission(request, obj)
+
 
 @admin.register(RegistroAcceso)
 class RegistroAccesoAdmin(admin.ModelAdmin):

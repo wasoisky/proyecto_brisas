@@ -3,6 +3,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from django.contrib.admin.sites import AdminSite
+from django.contrib.auth.models import Permission
+from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import RequestFactory, TestCase, override_settings
@@ -142,6 +144,44 @@ class UsuarioAdminTests(UsuarioTestMixin, TestCase):
         request.user = admin
         readonly = self.model_admin.get_readonly_fields(request, obj=None)
         self.assertNotIn('rol', readonly)
+
+    def _staff_con_permiso(self, *codenames):
+        staff = Usuario.objects.create_user(
+            username='staff', password='brisas2024', rol='ADMIN',
+            first_name='Staff', last_name='User', is_staff=True,
+        )
+        ct = ContentType.objects.get_for_model(Usuario)
+        for codename in codenames:
+            staff.user_permissions.add(Permission.objects.get(content_type=ct, codename=codename))
+        return staff
+
+    def test_staff_no_superusuario_no_puede_editar_a_un_superusuario(self):
+        staff = self._staff_con_permiso('change_usuario')
+        super_user = Usuario.objects.create_superuser(username='superadmin3', password='brisas2024')
+        request = self.factory.get(f'/admin/usuarios/usuario/{super_user.pk}/change/')
+        request.user = staff
+        self.assertFalse(self.model_admin.has_change_permission(request, obj=super_user))
+
+    def test_staff_no_superusuario_puede_editar_a_otro_no_superusuario(self):
+        staff = self._staff_con_permiso('change_usuario')
+        otro = self.crear_usuario('nicolas', rol='PROD')
+        request = self.factory.get(f'/admin/usuarios/usuario/{otro.pk}/change/')
+        request.user = staff
+        self.assertTrue(self.model_admin.has_change_permission(request, obj=otro))
+
+    def test_staff_no_superusuario_no_puede_borrar_a_un_superusuario(self):
+        staff = self._staff_con_permiso('delete_usuario')
+        super_user = Usuario.objects.create_superuser(username='superadmin4', password='brisas2024')
+        request = self.factory.get(f'/admin/usuarios/usuario/{super_user.pk}/delete/')
+        request.user = staff
+        self.assertFalse(self.model_admin.has_delete_permission(request, obj=super_user))
+
+    def test_superusuario_si_puede_editar_a_otro_superusuario(self):
+        super_admin = Usuario.objects.create_superuser(username='superadmin5', password='brisas2024')
+        otro_super = Usuario.objects.create_superuser(username='superadmin6', password='brisas2024')
+        request = self.factory.get(f'/admin/usuarios/usuario/{otro_super.pk}/change/')
+        request.user = super_admin
+        self.assertTrue(self.model_admin.has_change_permission(request, obj=otro_super))
 
 
 class UsuarioUpdateViewTests(UsuarioTestMixin, TestCase):

@@ -138,3 +138,28 @@ pg_restore --clean --if-exists -h HOST -p PORT -U USER -d NOMBRE_BD archivo.dump
 
 - Bitácora de auditoría CRUD (RS-04) — decisión de diseño transversal a varios módulos, requiere consulta directa con el usuario antes de implementar (ver CLAUDE.md sección 7).
 - Rotación/purga de dumps antiguos en `backup_bd` — no había requisito explícito; se puede agregar si el volumen de backups se vuelve un problema real.
+
+---
+
+## Sesión 2026-08-30 (cont.) — U-07: protección de superusuarios en Django admin
+
+Hallazgo de una revisión de seguridad automática sobre el commit `6129d8a`, verificado antes de implementar (no se implementó a ciegas): extiende U-03.
+
+**U-07 (Alta — bypass de protección vía `/admin/`):** `UsuarioUpdateView.get_object()` protege completamente a los superusuarios en la app (404 con `is_superuser=False`), pero `UsuarioAdmin` no tenía el mismo filtro. `get_readonly_fields()` (U-03) solo bloquea el auto-cambio de rol; nada impedía que un usuario `is_staff=True` con permisos Django de `change_usuario`/`delete_usuario` editara o borrara a **otro** usuario que sí fuera superusuario, vía `/admin/usuarios/usuario/<pk>/change/` o `/delete/`.
+
+No es explotable hoy: `maximino` (rol de negocio ADMIN) tiene `is_staff=True` pero ningún permiso Django asignado (sin `user_permissions`, sin grupo), así que el admin le niega el acceso al modelo `Usuario` por el chequeo estándar de permisos. Pero es protección accidental, no por diseño — si en el futuro se le otorga permiso de gestión de usuarios vía admin (plausible, ya que `is_staff=True` fue una decisión deliberada), el hueco se abre.
+
+**Fix (mismo patrón que las vistas, adaptado a `ModelAdmin`):**
+```python
+def has_change_permission(self, request, obj=None):
+    if obj is not None and obj.is_superuser and not request.user.is_superuser:
+        return False
+    return super().has_change_permission(request, obj)
+
+def has_delete_permission(self, request, obj=None):
+    if obj is not None and obj.is_superuser and not request.user.is_superuser:
+        return False
+    return super().has_delete_permission(request, obj)
+```
+
+Tests agregados a `UsuarioAdminTests` (18 → 22 tests en total): un staff con permiso `change_usuario` no puede editar a un superusuario pero sí a otro usuario normal; un staff con `delete_usuario` no puede borrar a un superusuario; un superusuario sí puede editar a otro superusuario (caso de control, para no romper la gestión legítima entre superusuarios técnicos).
