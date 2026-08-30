@@ -1,6 +1,6 @@
 from django import forms
 from django.forms import inlineformset_factory
-from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto
+from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto, Regalia
 
 
 class ProductoForm(forms.ModelForm):
@@ -54,6 +54,26 @@ class CompraInsumoForm(forms.ModelForm):
             'proveedor': forms.TextInput(attrs={'class': 'form-control'}),
             'factura': forms.TextInput(attrs={'class': 'form-control'}),
         }
+
+
+class RegaliaForm(forms.ModelForm):
+    class Meta:
+        model = Regalia
+        fields = ['fecha', 'producto', 'produccion', 'cantidad', 'destinatario', 'motivo', 'observaciones']
+        widgets = {
+            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'producto': forms.Select(attrs={'class': 'form-select'}),
+            'produccion': forms.Select(attrs={'class': 'form-select'}),
+            'cantidad': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'destinatario': forms.TextInput(attrs={'class': 'form-control'}),
+            'motivo': forms.Select(attrs={'class': 'form-select'}),
+            'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['produccion'].required = False
+        self.fields['produccion'].queryset = Produccion.objects.order_by('-fecha')
 
 
 RecetaProductoFormSet = inlineformset_factory(

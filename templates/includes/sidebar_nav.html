@@ -45,6 +45,12 @@
             <i class="bi bi-cart-check"></i> Compras
           </a>
         </li>
+        <li>
+          <a class="nav-link {% if '/produccion/regalias' in p %}active{% endif %}"
+             href="{% url 'produccion:regalia_list' %}">
+            <i class="bi bi-gift"></i> Regalías
+          </a>
+        </li>
       </ul>
     </div>
   </li>

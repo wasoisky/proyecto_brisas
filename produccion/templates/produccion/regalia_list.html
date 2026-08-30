@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Regalías — Brisas de Pacandé{% endblock %}
+{% block nav_produccion %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h4 class="mb-0"><i class="bi bi-gift me-2"></i>Regalías</h4>
+  <a href="{% url 'produccion:regalia_create' %}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>Nueva regalía
+  </a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-sm-auto">
+        <label class="form-label small mb-1">Buscar</label>
+        <input type="text" name="q" class="form-control form-control-sm" placeholder="Destinatario o producto…"
+               value="{{ request.GET.q }}" style="min-width:210px">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Producto</label>
+        <select name="producto" class="form-select form-select-sm" style="min-width:180px">
+          <option value="">Todos</option>
+          {% for p in productos %}
+          <option value="{{ p.pk }}" {% if request.GET.producto == p.pk|stringformat:"s" %}selected{% endif %}>
+            {{ p.nombre }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Motivo</label>
+        <select name="motivo" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for valor, etiqueta in motivos %}
+          <option value="{{ valor }}" {% if request.GET.motivo == valor %}selected{% endif %}>{{ etiqueta }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Desde</label>
+        <input type="date" name="desde" class="form-control form-control-sm" value="{{ request.GET.desde }}">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Hasta</label>
+        <input type="date" name="hasta" class="form-control form-control-sm" value="{{ request.GET.hasta }}">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-secondary btn-sm">Filtrar</button>
+        <a href="{% url 'produccion:regalia_list' %}" class="btn btn-outline-secondary btn-sm ms-1">Limpiar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Fecha</th>
+          <th>Producto</th>
+          <th class="text-end">Cantidad</th>
+          <th>Motivo</th>
+          <th>Destinatario</th>
+          <th>Lote de origen</th>
+          <th>Registrado por</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in regalias %}
+        <tr>
+          <td class="text-nowrap">{{ r.fecha|date:"d/m/Y" }}</td>
+          <td>{{ r.producto.nombre }}</td>
+          <td class="text-end fw-semibold">{{ r.cantidad }}</td>
+          <td>{{ r.get_motivo_display }}</td>
+          <td>{{ r.destinatario|default:"—" }}</td>
+          <td>{{ r.produccion.lote|default:"—" }}</td>
+          <td>{{ r.registrado_por.get_full_name|default:r.registrado_por.username }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center text-muted py-4">No hay regalías registradas.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if regalias %}
+      <tfoot class="table-light fw-semibold">
+        <tr>
+          <td colspan="2" class="text-end">Total filtrado:</td>
+          <td class="text-end">{{ total_general }}</td>
+          <td colspan="4"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+{% include "includes/pagination.html" %}
+{% endblock %}

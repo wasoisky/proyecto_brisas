@@ -25,6 +25,10 @@ urlpatterns = [
     path('compras/', views.CompraInsumoListView.as_view(), name='compra_list'),
     path('compras/nueva/', views.CompraInsumoCreateView.as_view(), name='compra_create'),
 
+    # Regalías (producto entregado sin cobro)
+    path('regalias/', views.RegaliaListView.as_view(), name='regalia_list'),
+    path('regalias/nueva/', views.RegaliaCreateView.as_view(), name='regalia_create'),
+
     # Recetas de productos
     path('recetas/', views.RecetaListView.as_view(), name='receta_list'),
     path('recetas/<int:pk>/editar/', views.RecetaUpdateView.as_view(), name='receta_update'),

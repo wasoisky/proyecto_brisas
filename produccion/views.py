@@ -11,8 +11,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from django.http import JsonResponse
 
-from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto
-from .forms import ProductoForm, InsumoForm, ProduccionForm, ConsumoInsumoFormSet, CompraInsumoForm, RecetaProductoFormSet
+from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto, Regalia
+from .forms import (
+    ProductoForm, InsumoForm, ProduccionForm, ConsumoInsumoFormSet, CompraInsumoForm,
+    RecetaProductoFormSet, RegaliaForm,
+)
 
 
 # ── Producto ──────────────────────────────────────────────────────────────────
@@ -307,6 +310,60 @@ class CompraInsumoCreateView(RolRequiredMixin, CreateView):
         return redirect(self.success_url)
 
 
+# ── Regalia ───────────────────────────────────────────────────────────────────
+
+class RegaliaListView(RolRequiredMixin, ListView):
+    roles_permitidos = ADMIN_PROD
+    model = Regalia
+    template_name = 'produccion/regalia_list.html'
+    context_object_name = 'regalias'
+    paginate_by = 10
+
+    def get_queryset(self):
+        qs = Regalia.objects.select_related('producto', 'produccion', 'registrado_por')
+        if q := self.request.GET.get('q'):
+            qs = qs.filter(
+                models.Q(destinatario__icontains=q) |
+                models.Q(producto__nombre__icontains=q)
+            )
+        if producto_id := self.request.GET.get('producto'):
+            qs = qs.filter(producto_id=producto_id)
+        if motivo := self.request.GET.get('motivo'):
+            qs = qs.filter(motivo=motivo)
+        if desde := self.request.GET.get('desde'):
+            qs = qs.filter(fecha__gte=desde)
+        if hasta := self.request.GET.get('hasta'):
+            qs = qs.filter(fecha__lte=hasta)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['productos'] = Producto.objects.filter(activo=True)
+        ctx['motivos'] = Regalia.Motivo.choices
+        ctx['total_general'] = sum(r.cantidad for r in self.object_list)
+        return ctx
+
+
+class RegaliaCreateView(RolRequiredMixin, CreateView):
+    roles_permitidos = ADMIN_PROD
+    model = Regalia
+    form_class = RegaliaForm
+    template_name = 'produccion/regalia_form.html'
+    success_url = reverse_lazy('produccion:regalia_list')
+
+    def get_initial(self):
+        return {'fecha': date.today()}
+
+    def form_valid(self, form):
+        form.instance.registrado_por = self.request.user
+        messages.success(
+            self.request,
+            f'Regalía registrada: {form.instance.cantidad} unidades de '
+            f'{form.instance.producto.nombre}.',
+        )
+        return super().form_valid(form)
+
+
 # ── RecetaProducto ────────────────────────────────────────────────────────────
 
 class RecetaListView(RolRequiredMixin, ListView):
@@ -374,8 +431,8 @@ class InsumoKardexView(RolRequiredMixin, View):
             .filter(insumo=insumo)
             .select_related('produccion__registrado_por')
             .values(
+                'cantidad',
                 fecha=F('produccion__fecha'),
-                cantidad=F('cantidad'),
                 lote=F('produccion__lote'),
                 registrado_por__username=F('produccion__registrado_por__username'),
             )

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto
+from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto, Regalia
 
 
 @admin.register(Producto)
@@ -36,6 +36,13 @@ class CompraInsumoAdmin(admin.ModelAdmin):
     list_display = ('fecha', 'insumo', 'cantidad', 'precio_unitario', 'proveedor', 'factura', 'registrado_por')
     list_filter = ('fecha', 'insumo')
     search_fields = ('factura', 'proveedor')
+
+
+@admin.register(Regalia)
+class RegaliaAdmin(admin.ModelAdmin):
+    list_display = ('fecha', 'producto', 'cantidad', 'motivo', 'destinatario', 'registrado_por')
+    list_filter = ('fecha', 'motivo', 'producto')
+    search_fields = ('destinatario',)
 
 
 class RecetaInline(admin.TabularInline):

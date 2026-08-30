@@ -144,3 +144,40 @@ class CompraInsumo(models.Model):
     @property
     def total(self):
         return self.cantidad * self.precio_unitario
+
+
+class Regalia(models.Model):
+    """Producto terminado entregado sin cobro: obsequio, cortesía o promoción."""
+    class Motivo(models.TextChoices):
+        PROMOCION = 'PRO', 'Promoción'
+        OBSEQUIO_CLIENTE = 'OBS', 'Obsequio a cliente'
+        CORTESIA = 'COR', 'Cortesía institucional'
+        OTRO = 'OTR', 'Otro'
+
+    fecha = models.DateField()
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT,
+                                 related_name='regalias')
+    produccion = models.ForeignKey(
+        Produccion, on_delete=models.PROTECT, related_name='regalias',
+        null=True, blank=True,
+        help_text='Lote de origen, si se conoce (trazabilidad BPM — Res. 2674/2013)',
+    )
+    cantidad = models.PositiveIntegerField()
+    destinatario = models.CharField(max_length=100, blank=True,
+                                    help_text='A quién se le entregó (opcional)')
+    motivo = models.CharField(max_length=3, choices=Motivo.choices, default=Motivo.OTRO)
+    observaciones = models.TextField(blank=True)
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='regalias_registradas',
+    )
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Regalía'
+        verbose_name_plural = 'Regalías'
+        ordering = ['-fecha', '-creado_en']
+
+    def __str__(self):
+        return f'{self.fecha} — {self.producto} x{self.cantidad} ({self.get_motivo_display()})'
