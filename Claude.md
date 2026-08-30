@@ -62,9 +62,10 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 - Mixin `RolRequiredMixin` aplicado a todas las vistas (no rehacer)
 - Template tags personalizados en `usuarios/templatetags/`
 - Log de accesos visible en `accesos.html`
-- `usuarios/tests.py`: 18 tests (mixins, `AdminPasswordResetForm`, `UsuarioUpdateView`, `UsuarioAdmin`, `backup_bd`) — todos en verde
+- `usuarios/tests.py`: 22 tests (mixins, `AdminPasswordResetForm`, `UsuarioUpdateView`, `UsuarioAdmin`, `backup_bd`) — todos en verde
 - **Backup de PostgreSQL**: `python manage.py backup_bd [--destino RUTA]` genera dump con `pg_dump -F c`; procedimiento de restauración (`pg_restore`) documentado en el docstring del comando y en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md) — cierra el riesgo crítico §13.3 del documento de tesis
-- Bitácora detallada de sesiones en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md); los 6 bugs de code review (U-01 a U-06) quedaron resueltos — ver sección 6
+- `UsuarioAdmin.has_change_permission()`/`has_delete_permission()` bloquean editar/borrar a un superusuario desde `/admin/` si quien lo intenta no es superusuario (U-07)
+- Bitácora detallada de sesiones en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md); los 7 bugs de code review/seguridad (U-01 a U-07) quedaron resueltos — ver sección 6
 
 ### ✅ Módulo producción
 - Modelos: `Producto`, `Insumo`, `Produccion`, `ConsumoInsumo`, `CompraInsumo`, `RecetaProducto`, `Regalia`
@@ -150,6 +151,8 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 **Resuelto:** D-01 (distribución) — `precio_unitario` de una `Entrega` no se validaba en servidor contra `PrecioPorCategoria`; solo se autocompletaba por JS en `planilla_ruta.html`, así que un valor manipulado en el POST (web) o el JSON (API de sync) se guardaba tal cual, violando la regla "precio por categoría, nunca por cliente individual" (sección 9, regla 2). `EntregaForm.clean()` y `EntregaSerializer.validate()` ahora recalculan `precio_unitario` desde `PrecioPorCategoria` según `(cliente.categoria, producto)` y rechazan la operación si no hay precio configurado. Detectado por TDD al escribir los tests de distribución, sesión 2026-08-30. Ver [distribucion/MODULO_DISTRIBUCION.md](distribucion/MODULO_DISTRIBUCION.md).
 
 **Resuelto:** U-01 a U-06 (`usuarios/`) — los 6 bugs de code review quedaron corregidos con TDD, sesión 2026-08-30: `UsuarioUpdateView.get_object()` ahora usa `get_object_or_404(..., is_superuser=False)` (cierra U-01 y U-05: GET/POST a un pk de superusuario devuelven 404 en vez de crashear o crear un usuario fantasma con username vacío); `AdminPasswordResetForm` recibe `usuario=` y lo pasa a `validate_password(p1, user=usuario)` (U-02); `UsuarioAdmin.get_readonly_fields()` bloquea el campo `rol` cuando el objeto editado es el propio usuario logueado, cerrando el bypass desde `/admin/` (U-03); `UsuarioUpdateView.form_valid()` consolida los dos guards de auto-protección en un solo bloque que solo usa `form.add_error` (U-04, U-06). Detalle en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md).
+
+**Resuelto:** U-07 (`usuarios/admin.py`) — hallazgo de revisión de seguridad sobre el commit `6129d8a`, extiende U-03: `UsuarioAdmin` no impedía que un `is_staff=True` con permisos Django de `change_usuario`/`delete_usuario` editara o borrara a un superusuario vía `/admin/`. No explotable hoy (`maximino` no tiene esos permisos asignados) pero era protección accidental. `has_change_permission()`/`has_delete_permission()` ahora devuelven `False` cuando `obj.is_superuser` y quien pide el cambio no es superusuario. TDD, sesión 2026-08-30. Ver [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md).
 
 | # | Archivo | Descripción | Impacto |
 |---|---|---|---|
