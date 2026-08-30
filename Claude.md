@@ -62,22 +62,29 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 - Mixin `RolRequiredMixin` aplicado a todas las vistas (no rehacer)
 - Template tags personalizados en `usuarios/templatetags/`
 - Log de accesos visible en `accesos.html`
-- `usuarios/tests.py`: 9 tests (mixins, `AdminPasswordResetForm`, `UsuarioUpdateView`) — todos en verde
-- Bitácora detallada de sesiones en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md), incluye 6 bugs de code review (U-01 a U-06) pendientes — ver sección 6
+- `usuarios/tests.py`: 18 tests (mixins, `AdminPasswordResetForm`, `UsuarioUpdateView`, `UsuarioAdmin`, `backup_bd`) — todos en verde
+- **Backup de PostgreSQL**: `python manage.py backup_bd [--destino RUTA]` genera dump con `pg_dump -F c`; procedimiento de restauración (`pg_restore`) documentado en el docstring del comando y en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md) — cierra el riesgo crítico §13.3 del documento de tesis
+- Bitácora detallada de sesiones en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md); los 6 bugs de code review (U-01 a U-06) quedaron resueltos — ver sección 6
 
 ### ✅ Módulo producción
-- Modelos: `Producto`, `Insumo`, `Produccion`, `ConsumoInsumo`, `CompraInsumo`, `RecetaProducto`
+- Modelos: `Producto`, `Insumo`, `Produccion`, `ConsumoInsumo`, `CompraInsumo`, `RecetaProducto`, `Regalia`
 - CRUD completo con búsqueda y filtros en todos los listados
 - Formset inline de consumo de insumos al registrar producción
 - Verificación de stock antes de guardar (transacción atómica)
 - **Kardex de insumos**: historial cronológico entradas/salidas con saldo acumulado
 - **Recetas por producto**: cantidad de insumo por unidad producida + API JSON para precarga
-- Migración `0003_receta_producto` aplicada
+- **Regalías**: producto terminado entregado sin cobro (obsequio/cortesía/promoción), con lote de origen opcional para trazabilidad BPM — implementa el requisito huérfano de §8.6.5 Tabla 3, ver decisión en sección 5
+- Migraciones `0003_receta_producto`, `0004_regalia` aplicadas
+- `produccion/tests.py`: 12 tests (verificación de stock atómica, compra incrementa stock, kardex, recetas, regalías) — todos en verde
+- Bitácora detallada de sesiones en [produccion/MODULO_PRODUCCION.md](produccion/MODULO_PRODUCCION.md), incluye fix de bug crítico de kardex (500) — sesión 2026-08-30
 
 ### ✅ Módulo activos
 - Doble registro diario (inicio y fin de jornada) con `UNIQUE(fecha, momento, tipo_activo)`
 - Dashboard de activos con estado actual de botellones y canastillas
 - CRUD `MovimientoActivo` con detalle
+- **HU-07 resuelta**: `BajaActivo` — bajas individuales con motivo (rotura/pérdida/robo/deterioro/otro), FK a `MovimientoActivo`, listado y alta desde el detalle del movimiento; el contador agregado `cantidad_baja` se mantiene sin cambios
+- `activos/tests.py`: 11 tests (unique_together, total, modelo/form/vista de `BajaActivo`) — todos en verde
+- Bitácora detallada de sesiones en [activos/MODULO_ACTIVOS.md](activos/MODULO_ACTIVOS.md)
 
 ### ✅ Módulo distribución
 - Modelos: `Cliente` (categoría REG/MAY), `PrecioPorCategoria`, `Planilla`, `Entrega`, `Averia`, `Credito`
@@ -87,6 +94,8 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 - **Sincronización híbrida**: localStorage + Axios — operación offline completa para Nicolás
 - **API REST DRF**: 5 endpoints para sincronización
 - Generación automática de `Credito` cuando `modalidad_pago = 'CRE'`
+- `distribucion/tests.py`: 20 tests (`PrecioPorCategoria`, generación automática de `Credito`, los 5 endpoints DRF) — todos en verde
+- Bitácora detallada de sesiones en [distribucion/MODULO_DISTRIBUCION.md](distribucion/MODULO_DISTRIBUCION.md), incluye fix D-01 (precio no validado en servidor) — sesión 2026-08-30
 
 ### ✅ Módulo reportes
 - Dashboard admin: producción mes, ventas mes, créditos pendientes, alertas insumos (stock bajo mínimo), planillas pendientes, descuadres
@@ -124,6 +133,9 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 | Sesión de trabajo por módulo | Mantener contexto acotado y commits coherentes |
 | ReportLab (no WeasyPrint) para export PDF | Ya está en el stack aprobado y no requiere instalar wkhtmltopdf/GTK en Windows |
 | Bitácora de sesión por módulo en `<app>/MODULO_<NOMBRE>.md` | Detalle línea por línea de bugs/tareas sin inflar este archivo; `CLAUDE.md` resume, el `MODULO_*.md` referenciado tiene el detalle |
+| `pg_dump`/`pg_restore` vía `subprocess` en management command propio (no librería de terceros) | Ya están disponibles con cualquier instalación de PostgreSQL 16, sin dependencias nuevas; tests mockean `subprocess.run` para no requerir el binario en CI |
+| `EntregaForm.clean()` / `EntregaSerializer.validate()` reemplazan `precio_unitario` por el de `PrecioPorCategoria`, ignorando el valor recibido en el POST/JSON | El precio solo se autocompletaba por JS en el cliente; nada validaba en servidor que respetara la categoría (regla 2, sección 9) — un valor manipulado se guardaba tal cual |
+| "Regalías" = producto terminado entregado sin cobro (obsequio/cortesía/promoción); modelo `Regalia` no descuenta ningún contador de stock | Confirmado con el usuario (§8.6.5 Tabla 3 no lo definía). `Producto` no lleva `stock_actual` (a diferencia de `Insumo`), así que es un registro de trazabilidad, no un movimiento de inventario |
 
 ---
 
@@ -131,57 +143,47 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 
 **Resuelto:** B-01 (`reportes/views.py`) — `alertas_insumos` ya filtra contra `F('stock_minimo')`. Commit `6aff4ef`, sesión 2026-08-30.
 
+**Resuelto:** Kardex de insumos (`produccion/views.py:376`) — `InsumoKardexView` crasheaba con 500 para cualquier insumo (incluso sin movimientos) porque anotaba `cantidad=F('cantidad')`, duplicando el nombre de un campo real del modelo (Django 5.2 lo rechaza). Detectado por TDD al escribir los tests de kardex, sesión 2026-08-30. Ver [produccion/MODULO_PRODUCCION.md](produccion/MODULO_PRODUCCION.md).
+
+**Resuelto:** HU-07 (activos) — `MovimientoActivo.cantidad_baja` solo era un contador agregado sin motivo por baja. Se agregó `BajaActivo` (fecha/tipo heredados del `MovimientoActivo` vía FK, `cantidad`, `motivo` con default "Rotura", `descripcion`), siguiendo el mismo patrón de `Averia` en distribución. TDD, sesión 2026-08-30. Ver [activos/MODULO_ACTIVOS.md](activos/MODULO_ACTIVOS.md).
+
+**Resuelto:** D-01 (distribución) — `precio_unitario` de una `Entrega` no se validaba en servidor contra `PrecioPorCategoria`; solo se autocompletaba por JS en `planilla_ruta.html`, así que un valor manipulado en el POST (web) o el JSON (API de sync) se guardaba tal cual, violando la regla "precio por categoría, nunca por cliente individual" (sección 9, regla 2). `EntregaForm.clean()` y `EntregaSerializer.validate()` ahora recalculan `precio_unitario` desde `PrecioPorCategoria` según `(cliente.categoria, producto)` y rechazan la operación si no hay precio configurado. Detectado por TDD al escribir los tests de distribución, sesión 2026-08-30. Ver [distribucion/MODULO_DISTRIBUCION.md](distribucion/MODULO_DISTRIBUCION.md).
+
+**Resuelto:** U-01 a U-06 (`usuarios/`) — los 6 bugs de code review quedaron corregidos con TDD, sesión 2026-08-30: `UsuarioUpdateView.get_object()` ahora usa `get_object_or_404(..., is_superuser=False)` (cierra U-01 y U-05: GET/POST a un pk de superusuario devuelven 404 en vez de crashear o crear un usuario fantasma con username vacío); `AdminPasswordResetForm` recibe `usuario=` y lo pasa a `validate_password(p1, user=usuario)` (U-02); `UsuarioAdmin.get_readonly_fields()` bloquea el campo `rol` cuando el objeto editado es el propio usuario logueado, cerrando el bypass desde `/admin/` (U-03); `UsuarioUpdateView.form_valid()` consolida los dos guards de auto-protección en un solo bloque que solo usa `form.add_error` (U-04, U-06). Detalle en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md).
+
 | # | Archivo | Descripción | Impacto |
 |---|---|---|---|
 | B-02 | `reportes/templates/reportes/creditos.html:116` | URL hardcodeada en JS: `` `/reportes/creditos/${pk}/pagar/` `` | Se rompe si cambia el prefijo de URL |
-| U-01 | `usuarios/views.py:73` | No hay `post()` que replique el guard de `get()`: un POST a un pk de superusuario deja `self.object = None` → `AttributeError` 500 | Alta — crash en producción |
-| U-02 | `usuarios/forms.py:52` | `validate_password(p1)` sin `user=` → `UserAttributeSimilarityValidator` no se aplica → contraseña igual al username se acepta | Media — seguridad |
-| U-03 | `usuarios/views.py` / `admin.py:84` | Guard de auto-cambio de rol solo vive en la vista; sin restricción en `/admin/usuarios/usuario/<pk>/change/` | Media — bypass del control de acceso |
-| U-04 | `usuarios/views.py:85` | `messages.error` + `form.add_error` se disparan juntos → error duplicado en pantalla | Baja — UX |
-| U-05 | `usuarios/views.py:66` | `get_object()` retorna `None` en vez de `Http404`; inconsistente con el resto del módulo | Baja — mismo fix que U-01 |
-| U-06 | `usuarios/views.py:81` | Dos guards de auto-protección separados; si ambos aplican, solo el primero se muestra | Baja |
-
-Detalle completo (código propuesto, línea exacta) en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md).
 
 ---
 
 ## 7. Pendiente — backlog priorizado
 
 ```
-CRÍTICA (riesgo calificado como crítico en el documento de tesis, §13.3-13.4,
-         nivel 15/20 — ver docs/ALINEACION_DOCUMENTO_DESARROLLO.md §3.1)
-  [ ] Implementar rutina de backup periódico de PostgreSQL + procedimiento de
-      restauración documentado. Declarado en alcance presente (§5.1) y como
-      tratamiento de riesgo crítico; hoy no existe ningún management command
-      ni cron para esto. Módulo: usuarios/administración (mgmt command propio).
-
 ALTA PRIORIDAD
   [ ] HU-13 (reportes): implementar detección automática de descuadres
       comparando producción/ventas/inventario. Hoy Descuadre es 100% registro
       manual (DescuadreCreateView) — no cumple el criterio de aceptación de
       la historia de usuario. Ver docs/ALINEACION_DOCUMENTO_DESARROLLO.md §3.2.
   [ ] B-02 Corregir URL hardcodeada en creditos.html JS        (10 min)
-  [ ] U-01 + U-05 Guard post() + get_object_or_404 en usuarios (mismo fix, ver sección 6)
-  [ ] U-02 Pasar user=usuario a validate_password
-  [ ] U-03 Bloquear auto-cambio de rol también desde /admin/
-  [ ] Pruebas Django TestCase para producción/activos/distribución/reportes
-      (usuarios ya tiene 9 — ver sección 4)
+  [ ] Pruebas Django TestCase para reportes
+      (usuarios, producción, activos y distribución ya tienen — ver sección 4)
 
 MEDIA PRIORIDAD
   [ ] Bitácora de auditoría CRUD (RS-04, §5.1 y Tabla 19): declarada en el
       documento pero RegistroAcceso solo cubre login/logout, no operaciones
-      de creación/modificación/eliminación sobre entidades de negocio.
-  [ ] U-04 Unificar mecanismo de error (solo form.add_error)
-  [ ] U-06 Consolidar los dos guards de auto-protección
+      de creación/modificación/eliminación sobre entidades de negocio. Decisión
+      pendiente de consultar con el usuario: modelo genérico de auditoría con
+      signals post_save/post_delete (afecta todos los módulos) vs. limitar el
+      alcance declarado en el documento. No implementar sin esa decisión.
   [ ] Fixtures de datos reales (productos, clientes, precios actuales)
   [ ] Despliegue Railway / Render / PythonAnywhere
   [ ] Gráficas Chart.js en ventas, PDF resumen mensual ejecutivo (ver reportes/MODULO_REPORTES.md)
 
 BAJA PRIORIDAD
-  [ ] "Registro de regalías" (producción): requisito derivado del cuestionario
-      (documento §8.6.5, tabla 3) sin implementar ni justificar su exclusión.
-  [ ] HU-07 (activos): registro de bajas sin campo de motivo individual —
-      hoy es solo un contador agregado por jornada.
+  [ ] Actualizar el documento de tesis (§8.6.5, Tabla 3) para reflejar que
+      "registro de regalías" ya está implementado (modelo `Regalia`, sesión
+      2026-08-30) — ver docs/ALINEACION_DOCUMENTO_DESARROLLO.md §3.4.
   [ ] Manual de usuario
   [ ] Capacitación al personal
 ```
@@ -202,6 +204,8 @@ PRODUCCIÓN
   ConsumoInsumo     id | FK:produccion | FK:insumo | cantidad
   CompraInsumo      id | fecha | FK:insumo | cantidad | precio_unitario | proveedor | factura
   RecetaProducto    id | FK:producto | FK:insumo | cantidad_por_unidad  [NUEVO]
+  Regalia           id | fecha | FK:producto | FK:produccion(opcional) | cantidad |
+                    destinatario | motivo(PRO/OBS/COR/OTR) | FK:registrado_por  [NUEVO]
 
 ACTIVOS
   ActivoRetornable  id | tipo(BOT/CAN) | estado(PLL/PVA/CLI/BAJ) | activo  [faltaba en este listado]
@@ -209,6 +213,8 @@ ACTIVOS
                     cantidad_en_planta_lleno | cantidad_en_planta_vacio |
                     cantidad_en_clientes | cantidad_baja
                     UNIQUE(fecha, momento, tipo_activo)
+  BajaActivo        id | FK:movimiento | cantidad | motivo(ROT/PER/ROB/DET/OTR) |
+                    descripcion | FK:registrado_por  [NUEVO — HU-07]
 
 DISTRIBUCIÓN
   Cliente           id | nombre | telefono | direccion | categoria(REG/MAY) | autoriza_datos | activo
