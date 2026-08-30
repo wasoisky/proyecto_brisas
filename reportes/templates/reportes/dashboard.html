@@ -6,7 +6,7 @@
 
 <!-- Tarjetas resumen -->
 <div class="row g-3 mb-4">
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-4">
     <div class="card text-center h-100">
       <div class="card-body">
         <i class="bi bi-box-seam text-primary" style="font-size:1.8rem"></i>
@@ -15,7 +15,7 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-4">
     <div class="card text-center h-100">
       <div class="card-body">
         <i class="bi bi-cash-stack text-success" style="font-size:1.8rem"></i>
@@ -24,7 +24,7 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-4">
     <div class="card text-center h-100 {% if creditos_pendientes %}border-warning{% endif %}">
       <div class="card-body">
         <i class="bi bi-credit-card text-warning" style="font-size:1.8rem"></i>
@@ -33,12 +33,30 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-4">
     <div class="card text-center h-100 {% if descuadres_activos %}border-danger{% endif %}">
       <div class="card-body">
         <i class="bi bi-exclamation-triangle {% if descuadres_activos %}text-danger{% else %}text-muted{% endif %}" style="font-size:1.8rem"></i>
         <div class="fs-3 fw-bold mt-1 {% if descuadres_activos %}text-danger{% endif %}">{{ descuadres_activos }}</div>
         <div class="small text-muted">Descuadres sin resolver</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="card text-center h-100 {% if alertas_insumos %}border-warning{% endif %}">
+      <div class="card-body">
+        <i class="bi bi-droplet-half {% if alertas_insumos %}text-warning{% else %}text-muted{% endif %}" style="font-size:1.8rem"></i>
+        <div class="fs-3 fw-bold mt-1 {% if alertas_insumos %}text-warning{% endif %}">{{ alertas_insumos }}</div>
+        <div class="small text-muted">Insumos bajo mínimo</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="card text-center h-100 {% if planillas_pendientes %}border-primary{% endif %}">
+      <div class="card-body">
+        <i class="bi bi-clipboard-check {% if planillas_pendientes %}text-primary{% else %}text-muted{% endif %}" style="font-size:1.8rem"></i>
+        <div class="fs-3 fw-bold mt-1 {% if planillas_pendientes %}text-primary{% endif %}">{{ planillas_pendientes }}</div>
+        <div class="small text-muted">Planillas por validar</div>
       </div>
     </div>
   </div>
@@ -76,6 +94,10 @@
         <a href="{% url 'reportes:ventas_excel' %}?fecha_desde={{ inicio_mes }}&fecha_hasta={{ hoy }}"
            class="list-group-item list-group-item-action">
           <i class="bi bi-file-earmark-excel me-2 text-success"></i>Ventas del mes — Excel
+        </a>
+        <a href="{% url 'reportes:ventas_pdf' %}?fecha_desde={{ inicio_mes }}&fecha_hasta={{ hoy }}"
+           class="list-group-item list-group-item-action">
+          <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Ventas del mes — PDF
         </a>
       </div>
     </div>
