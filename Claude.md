@@ -148,7 +148,18 @@ Detalle completo (código propuesto, línea exacta) en [usuarios/MODULO_USUARIOS
 ## 7. Pendiente — backlog priorizado
 
 ```
+CRÍTICA (riesgo calificado como crítico en el documento de tesis, §13.3-13.4,
+         nivel 15/20 — ver docs/ALINEACION_DOCUMENTO_DESARROLLO.md §3.1)
+  [ ] Implementar rutina de backup periódico de PostgreSQL + procedimiento de
+      restauración documentado. Declarado en alcance presente (§5.1) y como
+      tratamiento de riesgo crítico; hoy no existe ningún management command
+      ni cron para esto. Módulo: usuarios/administración (mgmt command propio).
+
 ALTA PRIORIDAD
+  [ ] HU-13 (reportes): implementar detección automática de descuadres
+      comparando producción/ventas/inventario. Hoy Descuadre es 100% registro
+      manual (DescuadreCreateView) — no cumple el criterio de aceptación de
+      la historia de usuario. Ver docs/ALINEACION_DOCUMENTO_DESARROLLO.md §3.2.
   [ ] B-02 Corregir URL hardcodeada en creditos.html JS        (10 min)
   [ ] U-01 + U-05 Guard post() + get_object_or_404 en usuarios (mismo fix, ver sección 6)
   [ ] U-02 Pasar user=usuario a validate_password
@@ -157,6 +168,9 @@ ALTA PRIORIDAD
       (usuarios ya tiene 9 — ver sección 4)
 
 MEDIA PRIORIDAD
+  [ ] Bitácora de auditoría CRUD (RS-04, §5.1 y Tabla 19): declarada en el
+      documento pero RegistroAcceso solo cubre login/logout, no operaciones
+      de creación/modificación/eliminación sobre entidades de negocio.
   [ ] U-04 Unificar mecanismo de error (solo form.add_error)
   [ ] U-06 Consolidar los dos guards de auto-protección
   [ ] Fixtures de datos reales (productos, clientes, precios actuales)
@@ -164,6 +178,10 @@ MEDIA PRIORIDAD
   [ ] Gráficas Chart.js en ventas, PDF resumen mensual ejecutivo (ver reportes/MODULO_REPORTES.md)
 
 BAJA PRIORIDAD
+  [ ] "Registro de regalías" (producción): requisito derivado del cuestionario
+      (documento §8.6.5, tabla 3) sin implementar ni justificar su exclusión.
+  [ ] HU-07 (activos): registro de bajas sin campo de motivo individual —
+      hoy es solo un contador agregado por jornada.
   [ ] Manual de usuario
   [ ] Capacitación al personal
 ```
