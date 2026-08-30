@@ -103,9 +103,9 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 - Ventas consolidadas con filtro por fechas y distribuidor
 - **Export Excel** de ventas (openpyxl) con formato y autoajuste de columnas
 - **Export PDF** de ventas (ReportLab, A4 horizontal) con resumen por producto y gran total — botones en dashboard y `ventas.html`
-- Descuadres: registro, filtro por tipo/estado, marcar como resuelto
+- Descuadres: registro manual + **detección automática (HU-13)** — `reportes/detector.py` (`detectar_pv`, `detectar_vi`, `detectar_ac`) comparado contra un umbral, botón "Detectar descuadres" en el dashboard y `python manage.py detectar_descuadres`; `Descuadre.es_automatico` distingue los generados por el sistema. Ver decisión de diseño en sección 5 y detalle en [reportes/MODULO_REPORTES.md](reportes/MODULO_REPORTES.md)
 - Créditos pendientes: lista paginada + **pago parcial** desde modal
-- Sin tests propios todavía (`reportes/tests.py` sigue con el boilerplate de Django, 0 tests reales) — ver backlog sección 7
+- `reportes/tests.py`: 25 tests (detección automática, vista/command de detección, regresión B-01, smoke test de exports Excel/PDF) — todos en verde
 - Bitácora de sesiones en [reportes/MODULO_REPORTES.md](reportes/MODULO_REPORTES.md)
 
 ### ✅ UI/UX — design system "Hydraulic Modernity"
@@ -137,6 +137,8 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 | `pg_dump`/`pg_restore` vía `subprocess` en management command propio (no librería de terceros) | Ya están disponibles con cualquier instalación de PostgreSQL 16, sin dependencias nuevas; tests mockean `subprocess.run` para no requerir el binario en CI |
 | `EntregaForm.clean()` / `EntregaSerializer.validate()` reemplazan `precio_unitario` por el de `PrecioPorCategoria`, ignorando el valor recibido en el POST/JSON | El precio solo se autocompletaba por JS en el cliente; nada validaba en servidor que respetara la categoría (regla 2, sección 9) — un valor manipulado se guardaba tal cual |
 | "Regalías" = producto terminado entregado sin cobro (obsequio/cortesía/promoción); modelo `Regalia` no descuenta ningún contador de stock | Confirmado con el usuario (§8.6.5 Tabla 3 no lo definía). `Producto` no lleva `stock_actual` (a diferencia de `Insumo`), así que es un registro de trazabilidad, no un movimiento de inventario |
+| HU-13: `detectar_pv`/`detectar_vi` cubren "producidas/vendidas/disponibles" comparando flujo del periodo y disponible acumulado calculado al vuelo (sin modelo de stock de producto terminado); `detectar_ac` (conservación de conteo de activos BOT/CAN) se mantiene pero se documenta como verificación de calidad extra, no como requisito textual de HU-13 | No hay vínculo por-entrega entre `Entrega` y `ActivoRetornable` (botellón se intercambia mano a mano sin registro individual, regla 7) — cruzar ventas contra activos sería adivinar, no comparar datos reales |
+| `Descuadre.es_automatico` (bool) en vez de un estado "propuesto" separado | Los hallazgos automáticos se crean directo y el admin los resuelve igual que los manuales; evita un flujo de aprobación adicional para una tesis de cronograma corto |
 
 ---
 
@@ -154,9 +156,9 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 
 **Resuelto:** U-07 (`usuarios/admin.py`) — hallazgo de revisión de seguridad sobre el commit `6129d8a`, extiende U-03: `UsuarioAdmin` no impedía que un `is_staff=True` con permisos Django de `change_usuario`/`delete_usuario` editara o borrara a un superusuario vía `/admin/`. No explotable hoy (`maximino` no tiene esos permisos asignados) pero era protección accidental. `has_change_permission()`/`has_delete_permission()` ahora devuelven `False` cuando `obj.is_superuser` y quien pide el cambio no es superusuario. TDD, sesión 2026-08-30. Ver [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md).
 
-| # | Archivo | Descripción | Impacto |
-|---|---|---|---|
-| B-02 | `reportes/templates/reportes/creditos.html:116` | URL hardcodeada en JS: `` `/reportes/creditos/${pk}/pagar/` `` | Se rompe si cambia el prefijo de URL |
+**Resuelto:** B-02 (`reportes/templates/reportes/creditos.html`) — URL hardcodeada en JS (`` `/reportes/creditos/${pk}/pagar/` ``). Ahora usa `{% url 'reportes:credito_pagar' pk=999999 %}` como base y reemplaza el placeholder por el pk real. Sesión 2026-08-30. Ver [reportes/MODULO_REPORTES.md](reportes/MODULO_REPORTES.md).
+
+No quedan bugs conocidos pendientes de corregir.
 
 ---
 
@@ -164,13 +166,8 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 
 ```
 ALTA PRIORIDAD
-  [ ] HU-13 (reportes): implementar detección automática de descuadres
-      comparando producción/ventas/inventario. Hoy Descuadre es 100% registro
-      manual (DescuadreCreateView) — no cumple el criterio de aceptación de
-      la historia de usuario. Ver docs/ALINEACION_DOCUMENTO_DESARROLLO.md §3.2.
-  [ ] B-02 Corregir URL hardcodeada en creditos.html JS        (10 min)
-  [ ] Pruebas Django TestCase para reportes
-      (usuarios, producción, activos y distribución ya tienen — ver sección 4)
+  (sin pendientes de alta prioridad — HU-13, B-02 y las pruebas de reportes
+  quedaron resueltos en la sesión 2026-08-30, ver secciones 4 y 6)
 
 MEDIA PRIORIDAD
   [ ] Bitácora de auditoría CRUD (RS-04, §5.1 y Tabla 19): declarada en el
@@ -231,7 +228,8 @@ DISTRIBUCIÓN
 
 REPORTES
   Descuadre         id | fecha | tipo(PV/VI/AC) | severidad(LEV/MOD/CRI) |
-                    descripcion | diferencia | resuelto | FK:detectado_por
+                    descripcion | diferencia | resuelto | es_automatico |
+                    FK:detectado_por  [es_automatico NUEVO — HU-13]
 ```
 
 ---
@@ -273,6 +271,9 @@ python manage.py crear_datos_prueba --limpiar  # borra todo y recarga
 # Migraciones
 python manage.py makemigrations
 python manage.py migrate
+
+# Detección automática de descuadres (HU-13)
+python manage.py detectar_descuadres  # mes en curso, detectado_por = primer ADMIN activo
 ```
 
 ---
