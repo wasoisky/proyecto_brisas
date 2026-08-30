@@ -101,6 +101,52 @@
         </dl>
       </div>
     </div>
+
+    <div class="card mt-3">
+      <div class="card-header fw-semibold">Bajas registradas (detalle por motivo)</div>
+      <div class="card-body">
+        {% if bajas %}
+        <table class="table table-sm mb-3">
+          <thead>
+            <tr><th>Cantidad</th><th>Motivo</th><th>Descripción</th><th>Registrado por</th></tr>
+          </thead>
+          <tbody>
+            {% for baja in bajas %}
+            <tr>
+              <td>{{ baja.cantidad }}</td>
+              <td>{{ baja.get_motivo_display }}</td>
+              <td>{{ baja.descripcion|default:"—" }}</td>
+              <td>{{ baja.registrado_por.get_full_name|default:baja.registrado_por.username }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted small">Sin bajas detalladas registradas para este movimiento.</p>
+        {% endif %}
+
+        <form method="post" action="{% url 'activos:baja_create' mov.pk %}" class="row g-2 align-items-end">
+          {% csrf_token %}
+          <div class="col-4 col-md-2">
+            <label class="form-label small fw-semibold">Cantidad</label>
+            {{ baja_form.cantidad }}
+          </div>
+          <div class="col-4 col-md-3">
+            <label class="form-label small fw-semibold">Motivo</label>
+            {{ baja_form.motivo }}
+          </div>
+          <div class="col-4 col-md-5">
+            <label class="form-label small fw-semibold">Descripción</label>
+            {{ baja_form.descripcion }}
+          </div>
+          <div class="col-12 col-md-2">
+            <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+              <i class="bi bi-plus-lg me-1"></i>Agregar baja
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

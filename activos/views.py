@@ -1,12 +1,13 @@
 from datetime import date
 
 from django.contrib import messages
+from django.shortcuts import get_object_or_404, redirect
 from usuarios.mixins import RolRequiredMixin, ADMIN_PROD
 from django.urls import reverse_lazy
 from django.views.generic import TemplateView, ListView, CreateView, DetailView
 
 from .models import ActivoRetornable, MovimientoActivo
-from .forms import MovimientoActivoForm
+from .forms import BajaActivoForm, MovimientoActivoForm
 
 
 class ActivosDashboardView(RolRequiredMixin, TemplateView):
@@ -83,3 +84,30 @@ class MovimientoDetailView(RolRequiredMixin, DetailView):
     model = MovimientoActivo
     template_name = 'activos/movimiento_detail.html'
     context_object_name = 'mov'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['bajas'] = self.object.bajas.select_related('registrado_por')
+        ctx['baja_form'] = BajaActivoForm()
+        return ctx
+
+
+class BajaActivoCreateView(RolRequiredMixin, CreateView):
+    roles_permitidos = ADMIN_PROD
+    form_class = BajaActivoForm
+
+    def get_movimiento(self):
+        return get_object_or_404(MovimientoActivo, pk=self.kwargs['movimiento_pk'])
+
+    def form_valid(self, form):
+        form.instance.movimiento = self.get_movimiento()
+        form.instance.registrado_por = self.request.user
+        messages.success(self.request, 'Baja registrada.')
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        messages.error(self.request, 'No se pudo registrar la baja: revisa los datos.')
+        return redirect('activos:movimiento_detail', pk=self.kwargs['movimiento_pk'])
+
+    def get_success_url(self):
+        return reverse_lazy('activos:movimiento_detail', kwargs={'pk': self.kwargs['movimiento_pk']})

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ActivoRetornable, MovimientoActivo
+from .models import ActivoRetornable, BajaActivo, MovimientoActivo
 
 
 @admin.register(ActivoRetornable)
@@ -18,3 +18,10 @@ class MovimientoActivoAdmin(admin.ModelAdmin):
     @admin.display(description='Total')
     def total(self, obj):
         return obj.total
+
+
+@admin.register(BajaActivo)
+class BajaActivoAdmin(admin.ModelAdmin):
+    list_display = ('movimiento', 'cantidad', 'motivo', 'registrado_por', 'creado_en')
+    list_filter = ('motivo',)
+    readonly_fields = ('creado_en',)

@@ -8,4 +8,5 @@ urlpatterns = [
     path('movimientos/', views.MovimientoListView.as_view(), name='movimiento_list'),
     path('movimientos/nuevo/', views.MovimientoCreateView.as_view(), name='movimiento_create'),
     path('movimientos/<int:pk>/', views.MovimientoDetailView.as_view(), name='movimiento_detail'),
+    path('movimientos/<int:movimiento_pk>/bajas/nueva/', views.BajaActivoCreateView.as_view(), name='baja_create'),
 ]

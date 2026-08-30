@@ -62,3 +62,34 @@ class MovimientoActivo(models.Model):
     def total(self):
         return (self.cantidad_en_planta_lleno + self.cantidad_en_planta_vacio
                 + self.cantidad_en_clientes + self.cantidad_baja)
+
+
+class BajaActivo(models.Model):
+    class Motivo(models.TextChoices):
+        ROTURA = 'ROT', 'Rotura'
+        PERDIDA = 'PER', 'Pérdida'
+        ROBO = 'ROB', 'Robo'
+        DETERIORO = 'DET', 'Deterioro'
+        OTRO = 'OTR', 'Otro'
+
+    movimiento = models.ForeignKey(
+        MovimientoActivo, on_delete=models.CASCADE, related_name='bajas',
+    )
+    cantidad = models.PositiveIntegerField()
+    motivo = models.CharField(max_length=3, choices=Motivo.choices, default=Motivo.ROTURA)
+    descripcion = models.TextField(blank=True)
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='bajas_activos',
+    )
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Baja de Activo'
+        verbose_name_plural = 'Bajas de Activos'
+        ordering = ['-creado_en']
+
+    def __str__(self):
+        return (f'Baja {self.movimiento.get_tipo_activo_display()} '
+                f'x{self.cantidad} — {self.get_motivo_display()}')

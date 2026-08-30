@@ -1,6 +1,6 @@
 from datetime import date
 from django import forms
-from .models import MovimientoActivo
+from .models import BajaActivo, MovimientoActivo
 
 
 class MovimientoActivoForm(forms.ModelForm):
@@ -29,3 +29,20 @@ class MovimientoActivoForm(forms.ModelForm):
         if cleaned.get('tipo_activo') == 'CAN':
             cleaned['cantidad_en_planta_vacio'] = 0
         return cleaned
+
+
+class BajaActivoForm(forms.ModelForm):
+    class Meta:
+        model = BajaActivo
+        fields = ['cantidad', 'motivo', 'descripcion']
+        widgets = {
+            'cantidad': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
+            'motivo': forms.Select(attrs={'class': 'form-select'}),
+            'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+    def clean_cantidad(self):
+        cantidad = self.cleaned_data['cantidad']
+        if cantidad < 1:
+            raise forms.ValidationError('La cantidad debe ser al menos 1.')
+        return cantidad
