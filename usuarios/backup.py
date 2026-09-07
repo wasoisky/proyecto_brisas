@@ -48,7 +48,15 @@ def generar_backup(destino=None):
     if db.get('PASSWORD'):
         env['PGPASSWORD'] = db['PASSWORD']
 
-    resultado = subprocess.run(comando, env=env, capture_output=True, text=True)
+    try:
+        resultado = subprocess.run(comando, env=env, capture_output=True, text=True)
+    except FileNotFoundError as e:
+        raise BackupError(
+            "No se encontró el ejecutable 'pg_dump'. Verifica que PostgreSQL esté "
+            "instalado y que su carpeta bin (ej. C:\\Program Files\\PostgreSQL\\18\\bin "
+            "en Windows) esté en el PATH del sistema."
+        ) from e
+
     if resultado.returncode != 0:
         raise BackupError(f'pg_dump falló: {resultado.stderr.strip()}')
 

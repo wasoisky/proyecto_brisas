@@ -169,6 +169,19 @@ class BackupViewsTests(UsuarioTestMixin, TestCase):
         self.assertNotEqual(response.status_code, 200)
 
 
+class GenerarBackupTests(TestCase):
+    @patch('usuarios.backup.subprocess.run')
+    def test_pg_dump_no_encontrado_lanza_backuperror_claro(self, mock_run):
+        from usuarios.backup import BackupError, generar_backup
+
+        mock_run.side_effect = FileNotFoundError()
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(BackupError) as ctx:
+                generar_backup(destino=tmp)
+        self.assertIn('pg_dump', str(ctx.exception))
+        self.assertIn('PATH', str(ctx.exception))
+
+
 class BackupBdCommandTests(TestCase):
     @patch('usuarios.backup.subprocess.run')
     def test_genera_dump_llamando_pg_dump(self, mock_run):

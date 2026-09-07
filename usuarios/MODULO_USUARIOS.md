@@ -111,6 +111,18 @@ Directrices recibidas de la sesión general (orquestando las 5 sesiones paralela
 
 `usuarios/tests.py` pasó de 9 a 18 tests: `UsuarioAdminTests` (3, nueva clase), `BackupBdCommandTests` (3, nueva clase), más 4 tests nuevos/reescritos en `UsuarioUpdateViewTests` y `AdminPasswordResetFormTests`. Los 9 tests originales permanecen verdes (2 renombrados para reflejar el nuevo contrato 404 en vez de redirect).
 
+---
+
+## Sesión 2026-09-04 — Bug real: `pg_dump` no encontrado (Windows) no se manejaba
+
+**Síntoma reportado por el usuario:** error al generar un backup (tanto por CLI como, previsiblemente, por el botón web).
+
+**Root cause (reproducido de forma determinista):** en la máquina del usuario, PostgreSQL 18 está instalado en `C:\Program Files\PostgreSQL\18\bin` (con `pg_dump.exe`), pero esa carpeta no está en el `PATH` del sistema. `subprocess.run(['pg_dump', ...])` lanza `FileNotFoundError: [WinError 2]` cuando el ejecutable no se encuentra — `generar_backup()` solo capturaba el caso "`pg_dump` corrió pero falló" (`resultado.returncode != 0`), no el caso "`pg_dump` ni siquiera se pudo lanzar". El resultado era un traceback crudo de Python en vez de un mensaje claro, tanto en la CLI (`CommandError` nunca se generaba) como en la vista web (hubiera sido un 500, ya que solo se captura `BackupError`).
+
+**Fix (TDD):** `generar_backup()` en `usuarios/backup.py` ahora envuelve `subprocess.run()` en un `try/except FileNotFoundError` y relanza como `BackupError` con un mensaje accionable ("verifica que PostgreSQL esté instalado y que su carpeta bin esté en el PATH"). Test nuevo: `GenerarBackupTests.test_pg_dump_no_encontrado_lanza_backuperror_claro` (mockea `subprocess.run` con `side_effect=FileNotFoundError`). `usuarios/tests.py`: 31 → 32 tests, todos verdes.
+
+**Nota:** esto NO arregla el PATH de la máquina del usuario — eso es una acción de sistema operativo fuera del repo (agregar `C:\Program Files\PostgreSQL\18\bin` al PATH de usuario en Variables de entorno de Windows). El fix de código asegura que, sin importar el entorno, el fallo se reporte con un mensaje claro en vez de un traceback o un 500.
+
 ### Backup de PostgreSQL (riesgo crítico §13.3, nivel 15)
 
 Nuevo comando `usuarios/management/commands/backup_bd.py`:
