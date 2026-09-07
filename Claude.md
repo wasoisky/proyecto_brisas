@@ -62,10 +62,11 @@ Credenciales de prueba: `maximino` / `cesar` / `nicolas` — password: `brisas20
 - Mixin `RolRequiredMixin` aplicado a todas las vistas (no rehacer)
 - Template tags personalizados en `usuarios/templatetags/`
 - Log de accesos visible en `accesos.html`
-- `usuarios/tests.py`: 31 tests (mixins, `AdminPasswordResetForm`, `UsuarioUpdateView`, `UsuarioAdmin`, `backup_bd`, `BackupViewsTests`) — todos en verde
+- `usuarios/tests.py`: 32 tests (mixins, `AdminPasswordResetForm`, `UsuarioUpdateView`, `UsuarioAdmin`, `backup_bd`, `BackupViewsTests`, `GenerarBackupTests`) — todos en verde
 - **Backup de PostgreSQL**: lógica compartida en `usuarios/backup.py` (`generar_backup`, `listar_backups`) — cierra el riesgo crítico §13.3 del documento de tesis con dos frentes:
   - CLI: `python manage.py backup_bd [--destino RUTA]` (`pg_dump -F c`); procedimiento de restauración (`pg_restore`) en el docstring del comando y en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md)
   - Web (solo superusuario `is_superuser=True`, mixin `SuperusuarioRequiredMixin`): `/usuarios/backups/` lista/descarga backups existentes + botón "Generar backup ahora"; sin programación de periodicidad desde la UI a propósito (sigue siendo cron/Task Scheduler)
+  - Si `pg_dump` no está en el `PATH` (típico en Windows si no se agregó manualmente tras instalar PostgreSQL), `generar_backup()` da un `BackupError` claro en vez de un traceback/500 — ver sesión 2026-09-04 en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md)
 - `UsuarioAdmin.has_change_permission()`/`has_delete_permission()` bloquean editar/borrar a un superusuario desde `/admin/` si quien lo intenta no es superusuario (U-07)
 - Bitácora detallada de sesiones en [usuarios/MODULO_USUARIOS.md](usuarios/MODULO_USUARIOS.md); los 7 bugs de code review/seguridad (U-01 a U-07) quedaron resueltos — ver sección 6
 
