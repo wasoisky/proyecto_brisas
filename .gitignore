@@ -36,6 +36,10 @@ local_settings.py
 .DS_Store
 Thumbs.db
 
-# Claude Code context
+# Claude Code context (solo local, no se publica en el repositorio)
 contexto_claude_code_brisas.md
 .claude/
+Claude.md
+CLAUDE.md
+*/MODULO_*.md
+docs/
