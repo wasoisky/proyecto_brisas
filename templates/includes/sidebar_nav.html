@@ -34,9 +34,15 @@
           </a>
         </li>
         <li>
+          <a class="nav-link {% if '/produccion/recetas' in p %}active{% endif %}"
+             href="{% url 'produccion:receta_list' %}">
+            <i class="bi bi-journal-text"></i> Recetas
+          </a>
+        </li>
+        <li>
           <a class="nav-link {% if '/produccion/registro' in p %}active{% endif %}"
              href="{% url 'produccion:produccion_list' %}">
-            <i class="bi bi-journal-text"></i> Registro diario
+            <i class="bi bi-clipboard-data"></i> Registro diario
           </a>
         </li>
         <li>

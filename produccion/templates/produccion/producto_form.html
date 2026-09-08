@@ -23,6 +23,9 @@
             {% else %}
               <label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ field.label }}</label>
               {{ field }}
+              {% if field.help_text %}
+                <div class="form-text text-muted">{{ field.help_text }}</div>
+              {% endif %}
             {% endif %}
             {% if field.errors %}
               <div class="invalid-feedback d-block">{{ field.errors|join:", " }}</div>

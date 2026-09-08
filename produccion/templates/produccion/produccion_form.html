@@ -65,6 +65,8 @@
             </button>
           </div>
         </div>
+        <div id="aviso-sin-receta" class="alert alert-warning alert-dismissible py-2 px-3 mb-0 rounded-0 d-none">
+        </div>
         <div class="card-body p-0">
           {{ formset.management_form }}
           <div class="table-responsive">
@@ -133,10 +135,20 @@
 
 {% block extra_js %}
 <script>
-const RECETA_API_URL = "{% url 'produccion:receta_api' 0 %}".replace('/0/', '/');
+const RECETA_API_URL    = "{% url 'produccion:receta_api' 0 %}".replace('/0/', '/');
+const RECETA_UPDATE_TPL = "{% url 'produccion:receta_update' 0 %}";
 const selectProducto = document.getElementById('{{ form.producto.id_for_label }}');
 const inputCantidad  = document.getElementById('{{ form.cantidad_producida.id_for_label }}');
 const btnCargar      = document.getElementById('btn-cargar-receta');
+const avisoSinReceta = document.getElementById('aviso-sin-receta');
+const totalForms     = document.getElementById('id_consumos-TOTAL_FORMS');
+
+function ocultarAvisoSinReceta() {
+  avisoSinReceta.classList.add('d-none');
+  avisoSinReceta.innerHTML = '';
+}
+
+if (selectProducto) selectProducto.addEventListener('change', ocultarAvisoSinReceta);
 
 function actualizarBotonReceta() {
   const tieneProducto  = selectProducto && selectProducto.value;
@@ -156,10 +168,21 @@ btnCargar.addEventListener('click', function () {
     .then(r => r.json())
     .then(data => {
       if (!data.receta || data.receta.length === 0) {
-        alert('Este producto no tiene receta definida.\nVe a Productos → ícono de receta para crearla.');
+        const url = RECETA_UPDATE_TPL.replace('0', productoId);
+        avisoSinReceta.innerHTML =
+          'Este producto no tiene receta definida — puedes registrar el consumo ' +
+          'manualmente con "Agregar fila", o <a href="' + url + '" target="_blank" ' +
+          'rel="noopener">definir su receta</a>.';
+        avisoSinReceta.classList.remove('d-none');
         return;
       }
-      // Limpiar filas existentes (marcar DELETE en las que tienen PK, borrar las vacías)
+      ocultarAvisoSinReceta();
+
+      // Limpiar filas existentes (marcar DELETE en las que tienen PK, borrar las
+      // vacías). Al borrar una fila del DOM hay que descontarla también de
+      // TOTAL_FORMS: si no, el management form queda contando filas que ya no
+      // existen y el servidor, al re-renderizar tras un error, agrega filas
+      // fantasma en blanco por cada índice sin datos en el POST.
       document.querySelectorAll('.consumo-row').forEach(row => {
         const delCheck = row.querySelector('input[type=checkbox][name$="-DELETE"]');
         const pkInput  = row.querySelector('input[name$="-id"]');
@@ -167,11 +190,11 @@ btnCargar.addEventListener('click', function () {
           if (delCheck) { delCheck.checked = true; row.style.opacity = '0.35'; }
         } else {
           row.remove();
+          totalForms.value = parseInt(totalForms.value) - 1;
         }
       });
 
       const tbody     = document.getElementById('consumos-tbody');
-      const totalForms = document.getElementById('id_consumos-TOTAL_FORMS');
       const emptyTpl  = document.getElementById('empty-consumo-row').innerHTML;
 
       data.receta.forEach(linea => {

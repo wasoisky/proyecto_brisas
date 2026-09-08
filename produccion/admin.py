@@ -1,10 +1,27 @@
 from django.contrib import admin
-from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto, Regalia
+from .models import (
+    Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto, Regalia,
+    CategoriaInsumo, UnidadMedida,
+)
+
+
+@admin.register(CategoriaInsumo)
+class CategoriaInsumoAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'orden', 'activo')
+    list_editable = ('orden', 'activo')
+    ordering = ('orden', 'nombre')
+
+
+@admin.register(UnidadMedida)
+class UnidadMedidaAdmin(admin.ModelAdmin):
+    list_display = ('nombre', 'orden', 'activo')
+    list_editable = ('orden', 'activo')
+    ordering = ('orden', 'nombre')
 
 
 @admin.register(Producto)
 class ProductoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'presentacion', 'unidad_medida', 'activo')
+    list_display = ('nombre', 'presentacion', 'contenido_cantidad', 'contenido_unidad', 'unidad_medida', 'activo')
     list_filter = ('activo', 'presentacion')
 
 

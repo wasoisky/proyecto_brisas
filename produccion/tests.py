@@ -6,26 +6,43 @@ from django.urls import reverse
 
 from usuarios.models import Usuario
 
-from .models import CompraInsumo, ConsumoInsumo, Insumo, Producto, Produccion, RecetaProducto, Regalia
+from .models import (
+    CompraInsumo, ConsumoInsumo, Insumo, Producto, Produccion, RecetaProducto, Regalia,
+    CategoriaInsumo, UnidadMedida,
+)
 
 
 class ProduccionTestMixin:
-    """Helpers compartidos por los TestCase del módulo."""
+    """Helpers compartidos por los TestCase del módulo.
+
+    CategoriaInsumo y UnidadMedida ya vienen poblados por la migración de
+    datos 0006_poblar_catalogos (9 categorías, 13 unidades) — los tests solo
+    los leen, no los crean.
+    """
 
     def crear_admin(self, username='maximino', password='brisas2024'):
         return Usuario.objects.create_user(
             username=username, password=password, rol='ADMIN',
         )
 
-    def crear_producto(self, nombre='Botellón 20L', presentacion='BOT'):
+    def unidad(self, nombre='unidad'):
+        return UnidadMedida.objects.get(nombre=nombre)
+
+    def categoria(self, nombre='Tapas y sellado'):
+        return CategoriaInsumo.objects.get(nombre=nombre)
+
+    def crear_producto(self, nombre='Botellón 20L', presentacion='BOT', unidad_medida=None):
         return Producto.objects.create(
-            nombre=nombre, presentacion=presentacion, unidad_medida='unidad',
+            nombre=nombre, presentacion=presentacion,
+            unidad_medida=unidad_medida or self.unidad('unidad'),
         )
 
     def crear_insumo(self, nombre='Tapa plástica', stock_actual=Decimal('50'),
-                      stock_minimo=Decimal('10')):
+                      stock_minimo=Decimal('10'), categoria=None, unidad_medida=None):
         return Insumo.objects.create(
-            nombre=nombre, categoria='TAP', unidad_medida='unidad',
+            nombre=nombre,
+            categoria=categoria or self.categoria('Tapas y sellado'),
+            unidad_medida=unidad_medida or self.unidad('unidad'),
             stock_actual=stock_actual, stock_minimo=stock_minimo,
         )
 
@@ -80,6 +97,63 @@ class VerificacionStockProduccionTests(ProduccionTestMixin, TestCase):
         self.assertRedirects(response, reverse('produccion:produccion_list'))
         self.insumo.refresh_from_db()
         self.assertEqual(self.insumo.stock_actual, Decimal('0'))
+
+
+class FormularioProduccionTests(ProduccionTestMixin, TestCase):
+    """Tarea 5: tras un POST inválido, el formulario debe volver con todo lo
+    digitado y el error debe verse junto al campo, no solo en el banner.
+
+    Nota: el bug original también incluía un desincronizo de TOTAL_FORMS
+    causado por el JS de "Cargar receta" (removía filas del DOM sin
+    decrementar el management form, generando filas fantasma en blanco al
+    volver del servidor). Ese fix es solo de JavaScript — no ejecutable desde
+    TestCase — y se verificó reproduciendo a mano el POST exacto que el
+    navegador enviaría (ver produccion/MODULO_PRODUCCION.md, sesión de esta
+    tarea) y corrigiendo produccion_form.html en consecuencia."""
+
+    def setUp(self):
+        self.admin = self.crear_admin()
+        self.client.force_login(self.admin)
+        self.producto = self.crear_producto()
+        self.insumo = self.crear_insumo(stock_actual=Decimal('5'))
+
+    def _post_stock_insuficiente(self):
+        data = {
+            'fecha': '2026-09-07',
+            'lote': 'PROD-BUG-001',
+            'producto': self.producto.pk,
+            'cantidad_producida': 10,
+            'observaciones': 'nota de prueba',
+            'consumos-TOTAL_FORMS': '2',
+            'consumos-INITIAL_FORMS': '0',
+            'consumos-MIN_NUM_FORMS': '0',
+            'consumos-MAX_NUM_FORMS': '1000',
+            'consumos-0-insumo': self.insumo.pk,
+            'consumos-0-cantidad': '999',
+            'consumos-1-insumo': '',
+            'consumos-1-cantidad': '',
+        }
+        return self.client.post(reverse('produccion:produccion_create'), data=data)
+
+    def test_conserva_datos_del_formulario_tras_stock_insuficiente(self):
+        response = self._post_stock_insuficiente()
+
+        self.assertEqual(response.status_code, 200)
+        html = response.content.decode('utf-8')
+        self.assertIn('PROD-BUG-001', html)
+        self.assertIn('nota de prueba', html)
+        self.assertIn(f'value="{self.producto.pk}" selected', html)
+        self.assertIn(f'value="{self.insumo.pk}" selected', html)
+        self.assertIn('value="999"', html)
+
+    def test_error_de_stock_aparece_junto_al_campo_ademas_del_banner(self):
+        response = self._post_stock_insuficiente()
+
+        mensajes = [str(m) for m in response.context['messages']]
+        self.assertTrue(any('Stock insuficiente' in m for m in mensajes))
+
+        formset = response.context['formset']
+        self.assertIn('Stock insuficiente', formset.forms[0].errors.get('cantidad', [''])[0])
 
 
 class CompraInsumoStockTests(ProduccionTestMixin, TestCase):
@@ -229,7 +303,7 @@ class RegaliaTests(ProduccionTestMixin, TestCase):
         self.assertEqual(regalia.produccion, produccion)
 
     def test_lista_filtra_por_producto_y_calcula_total(self):
-        otro_producto = self.crear_producto(nombre='Bolsa 300ml', presentacion='B3C')
+        otro_producto = self.crear_producto(nombre='Bolsa 300ml', presentacion='BIN')
         Regalia.objects.create(
             fecha='2026-08-10', producto=self.producto, cantidad=4,
             motivo=Regalia.Motivo.OTRO, registrado_por=self.admin,
@@ -248,3 +322,138 @@ class RegaliaTests(ProduccionTestMixin, TestCase):
             Regalia.objects.get(producto=self.producto),
         ])
         self.assertEqual(response.context['total_general'], 4)
+
+
+class CatalogosTests(ProduccionTestMixin, TestCase):
+    """CategoriaInsumo y UnidadMedida deben poder crecer desde el admin,
+    sin migración de código (Tarea 1 y 2)."""
+
+    def test_categoria_insumo_tiene_al_menos_8_activas(self):
+        self.assertGreaterEqual(CategoriaInsumo.objects.filter(activo=True).count(), 8)
+
+    def test_unidad_medida_incluye_las_unidades_pedidas(self):
+        nombres = set(UnidadMedida.objects.values_list('nombre', flat=True))
+        requeridas = {
+            'unidad', 'millar', 'paquete', 'rollo', 'caja', 'bulto',
+            'kilogramo', 'gramo', 'litro', 'mililitro', 'metro',
+        }
+        self.assertTrue(requeridas.issubset(nombres))
+
+    def test_categoria_nueva_aparece_en_el_formulario_sin_tocar_codigo(self):
+        from .forms import InsumoForm
+        nueva = CategoriaInsumo.objects.create(nombre='Categoría de prueba', orden=99)
+        form = InsumoForm()
+        self.assertIn(nueva, form.fields['categoria'].queryset)
+
+
+class InsumoFormValidacionTests(ProduccionTestMixin, TestCase):
+    def test_no_se_puede_guardar_insumo_con_categoria_vacia(self):
+        from .forms import InsumoForm
+        form = InsumoForm(data={
+            'nombre': 'Nuevo insumo', 'categoria': '',
+            'unidad_medida': self.unidad('unidad').pk,
+            'stock_actual': '0', 'stock_minimo': '0',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('categoria', form.errors)
+
+    def test_no_se_puede_guardar_insumo_con_unidad_fuera_del_catalogo(self):
+        from .forms import InsumoForm
+        pk_inexistente = UnidadMedida.objects.order_by('-pk').first().pk + 1000
+        form = InsumoForm(data={
+            'nombre': 'Nuevo insumo', 'categoria': self.categoria().pk,
+            'unidad_medida': pk_inexistente, 'stock_actual': '0', 'stock_minimo': '0',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('unidad_medida', form.errors)
+
+    def test_bloquea_cambiar_unidad_si_ya_tiene_consumos_de_produccion(self):
+        insumo = self.crear_insumo(unidad_medida=self.unidad('litro'))
+        producto = self.crear_producto()
+        admin = self.crear_admin(username='cesar_edit1')
+        prod = Produccion.objects.create(
+            fecha='2026-09-01', lote='PROD-EDIT', producto=producto,
+            cantidad_producida=1, registrado_por=admin,
+        )
+        ConsumoInsumo.objects.create(produccion=prod, insumo=insumo, cantidad=Decimal('1'))
+
+        from .forms import InsumoForm
+        form = InsumoForm(instance=insumo, data={
+            'nombre': insumo.nombre, 'categoria': insumo.categoria.pk,
+            'unidad_medida': self.unidad('unidad').pk,
+            'stock_actual': str(insumo.stock_actual), 'stock_minimo': str(insumo.stock_minimo),
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('unidad_medida', form.errors)
+
+    def test_permite_editar_insumo_sin_cambiar_unidad_aunque_tenga_consumos(self):
+        insumo = self.crear_insumo(unidad_medida=self.unidad('litro'))
+        producto = self.crear_producto()
+        admin = self.crear_admin(username='cesar_edit2')
+        prod = Produccion.objects.create(
+            fecha='2026-09-01', lote='PROD-EDIT2', producto=producto,
+            cantidad_producida=1, registrado_por=admin,
+        )
+        ConsumoInsumo.objects.create(produccion=prod, insumo=insumo, cantidad=Decimal('1'))
+
+        from .forms import InsumoForm
+        form = InsumoForm(instance=insumo, data={
+            'nombre': 'Nombre corregido', 'categoria': insumo.categoria.pk,
+            'unidad_medida': insumo.unidad_medida.pk,
+            'stock_actual': str(insumo.stock_actual), 'stock_minimo': str(insumo.stock_minimo),
+        })
+        self.assertTrue(form.is_valid())
+
+
+class MensajeStockInsuficienteTests(ProduccionTestMixin, TestCase):
+    def setUp(self):
+        self.admin = self.crear_admin()
+        self.client.force_login(self.admin)
+        self.producto = self.crear_producto()
+        self.insumo = self.crear_insumo(stock_actual=Decimal('5'), unidad_medida=self.unidad('rollo'))
+
+    def test_mensaje_muestra_la_misma_unidad_en_disponible_y_requerido(self):
+        data = {
+            'fecha': '2026-09-01', 'lote': 'PROD-MSG', 'producto': self.producto.pk,
+            'cantidad_producida': 1, 'observaciones': '',
+            'consumos-TOTAL_FORMS': '1', 'consumos-INITIAL_FORMS': '0',
+            'consumos-MIN_NUM_FORMS': '0', 'consumos-MAX_NUM_FORMS': '1000',
+            'consumos-0-insumo': self.insumo.pk, 'consumos-0-cantidad': '999',
+        }
+        response = self.client.post(reverse('produccion:produccion_create'), data=data)
+
+        mensajes = [str(m) for m in response.context['messages']]
+        self.assertTrue(any(
+            'disponible 5.00 rollo' in m and 'requerido 999 rollo' in m for m in mensajes
+        ), mensajes)
+
+
+class ProductoFormTests(ProduccionTestMixin, TestCase):
+    def test_contenido_unidad_solo_ofrece_unidades_de_volumen_o_masa(self):
+        from .forms import ProductoForm
+        form = ProductoForm()
+        nombres = set(form.fields['contenido_unidad'].queryset.values_list('nombre', flat=True))
+        self.assertEqual(nombres, {'litro', 'mililitro', 'gramo', 'kilogramo'})
+
+    def test_no_se_puede_guardar_producto_con_presentacion_arbitraria(self):
+        from .forms import ProductoForm
+        form = ProductoForm(data={
+            'nombre': 'Producto raro', 'presentacion': 'XXX',
+            'contenido_cantidad': '', 'contenido_unidad': '', 'unidades_por_empaque': '',
+            'unidad_medida': self.unidad('unidad').pk, 'activo': True,
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('presentacion', form.errors)
+
+
+class NavegacionRecetasTests(ProduccionTestMixin, TestCase):
+    """Tarea 4: Recetas debe ser alcanzable por clics desde el menú lateral."""
+
+    def setUp(self):
+        self.admin = self.crear_admin()
+        self.client.force_login(self.admin)
+
+    def test_sidebar_incluye_enlace_a_recetas(self):
+        response = self.client.get(reverse('produccion:producto_list'))
+        self.assertContains(response, reverse('produccion:receta_list'))
+        self.assertContains(response, 'Recetas')

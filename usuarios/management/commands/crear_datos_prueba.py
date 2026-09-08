@@ -22,8 +22,29 @@ from django.utils import timezone
 
 from usuarios.models import Usuario
 from produccion.models import (
-    Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto
+    Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto,
+    CategoriaInsumo, UnidadMedida,
 )
+
+# Presentación (código viejo interno del script -> código real vigente en Producto).
+_PRESENTACION_REAL = {
+    'BOT': 'BOT', 'PST': 'PAC', 'PCT': 'PAC', 'B5L': 'BIN', 'B3C': 'BIN', 'HIE': 'BIN',
+}
+# Categoría de insumo (código viejo interno del script -> nombre real en CategoriaInsumo).
+_CATEGORIA_REAL = {
+    'PST': 'Envases y empaques', 'PCT': 'Envases y empaques', 'REE': 'Envases y empaques',
+    'TAP': 'Tapas y sellado', 'CIN': 'Tapas y sellado', 'OTR': 'Otros',
+}
+# Unidad de medida (texto libre viejo del script -> nombre real en UnidadMedida).
+_UNIDAD_REAL = {'kg': 'kilogramo'}
+
+
+def _unidad(nombre):
+    return UnidadMedida.objects.get(nombre=_UNIDAD_REAL.get(nombre, nombre))
+
+
+def _categoria(codigo):
+    return CategoriaInsumo.objects.get(nombre=_CATEGORIA_REAL[codigo])
 from activos.models import MovimientoActivo
 from distribucion.models import Cliente, PrecioPorCategoria, Planilla, Entrega, Averia, Credito
 from reportes.models import Descuadre
@@ -126,8 +147,8 @@ class Command(BaseCommand):
         productos = {}
         for nombre, pres, unidad in datos:
             p, _ = Producto.objects.get_or_create(
-                presentacion=pres,
-                defaults=dict(nombre=nombre, unidad_medida=unidad),
+                nombre=nombre,
+                defaults=dict(presentacion=_PRESENTACION_REAL[pres], unidad_medida=_unidad(unidad)),
             )
             productos[pres] = p
         self.stdout.write('  ✔ Productos (6)')
@@ -155,7 +176,7 @@ class Command(BaseCommand):
         for nombre, cat, unidad, stock, minimo in datos:
             ins, _ = Insumo.objects.get_or_create(
                 nombre=nombre,
-                defaults=dict(categoria=cat, unidad_medida=unidad,
+                defaults=dict(categoria=_categoria(cat), unidad_medida=_unidad(unidad),
                               stock_actual=stock, stock_minimo=minimo),
             )
             insumos[cat] = ins

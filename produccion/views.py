@@ -11,7 +11,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from django.http import JsonResponse
 
-from .models import Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto, Regalia
+from .models import (
+    Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto, Regalia,
+    CategoriaInsumo,
+)
 from .forms import (
     ProductoForm, InsumoForm, ProduccionForm, ConsumoInsumoFormSet, CompraInsumoForm,
     RecetaProductoFormSet, RegaliaForm,
@@ -97,18 +100,18 @@ class InsumoListView(RolRequiredMixin, ListView):
         activo = self.request.GET.get('activo')
         solo_alertas = self.request.GET.get('alertas')
         if categoria:
-            qs = qs.filter(categoria=categoria)
+            qs = qs.filter(categoria_id=categoria)
         if activo in ('1', '0'):
             qs = qs.filter(activo=activo == '1')
         if solo_alertas == '1':
             # stock_actual <= stock_minimo
             from django.db.models import F
             qs = qs.filter(stock_actual__lte=F('stock_minimo'))
-        return qs
+        return qs.select_related('categoria', 'unidad_medida')
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx['categorias'] = Insumo.Categoria.choices
+        ctx['categorias'] = CategoriaInsumo.objects.filter(activo=True).order_by('orden')
         from django.db.models import F
         ctx['total_alertas'] = Insumo.objects.filter(
             activo=True, stock_actual__lte=F('stock_minimo')
@@ -215,11 +218,13 @@ class ProduccionCreateView(RolRequiredMixin, CreateView):
             insumo = f.cleaned_data['insumo']
             cantidad = f.cleaned_data['cantidad']
             if insumo.stock_actual < cantidad:
-                messages.error(
-                    self.request,
+                mensaje = (
                     f'Stock insuficiente: {insumo.nombre} — '
-                    f'disponible {insumo.stock_actual} {insumo.unidad_medida}, requerido {cantidad}.',
+                    f'disponible {insumo.stock_actual} {insumo.unidad_medida}, '
+                    f'requerido {cantidad} {insumo.unidad_medida}.'
                 )
+                messages.error(self.request, mensaje)
+                f.add_error('cantidad', mensaje)
                 return self.render_to_response(
                     self.get_context_data(form=form, formset=formset)
                 )
@@ -483,13 +488,13 @@ def receta_api(request, producto_id):
         RecetaProducto.objects
         .filter(producto_id=producto_id)
         .select_related('insumo')
-        .values('insumo_id', 'insumo__nombre', 'insumo__unidad_medida', 'cantidad_por_unidad')
+        .values('insumo_id', 'insumo__nombre', 'insumo__unidad_medida__nombre', 'cantidad_por_unidad')
     )
     data = [
         {
             'insumo_id': l['insumo_id'],
             'insumo_nombre': l['insumo__nombre'],
-            'unidad_medida': l['insumo__unidad_medida'],
+            'unidad_medida': l['insumo__unidad_medida__nombre'],
             'cantidad_por_unidad': str(l['cantidad_por_unidad']),
         }
         for l in lineas

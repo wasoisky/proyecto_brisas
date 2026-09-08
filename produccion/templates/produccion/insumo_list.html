@@ -32,8 +32,8 @@
         <label class="form-label small mb-1">Categoría</label>
         <select name="categoria" class="form-select form-select-sm">
           <option value="">Todas</option>
-          {% for val, label in categorias %}
-          <option value="{{ val }}" {% if request.GET.categoria == val %}selected{% endif %}>{{ label }}</option>
+          {% for cat in categorias %}
+          <option value="{{ cat.pk }}" {% if request.GET.categoria == cat.pk|stringformat:"s" %}selected{% endif %}>{{ cat.nombre }}</option>
           {% endfor %}
         </select>
       </div>
@@ -86,7 +86,7 @@
               </span>
             {% endif %}
           </td>
-          <td>{{ ins.get_categoria_display }}</td>
+          <td>{{ ins.categoria.nombre }}</td>
           <td class="text-end fw-semibold {% if ins.alerta_stock and ins.activo %}text-danger{% endif %}">
             {{ ins.stock_actual }}
           </td>

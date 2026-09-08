@@ -7,7 +7,7 @@ from django.db.models import F, Sum
 from django.test import TestCase
 from django.urls import reverse
 
-from produccion.models import Insumo, Producto, Produccion
+from produccion.models import Insumo, Producto, Produccion, CategoriaInsumo, UnidadMedida
 from distribucion.models import Cliente, Planilla, Entrega
 from activos.models import ActivoRetornable, MovimientoActivo
 from usuarios.models import Usuario
@@ -24,8 +24,8 @@ class DetectorHelpersMixin:
             username=username, password='brisas2024', rol='ADMIN',
         )
 
-    def crear_producto(self, nombre='Bolsa 300ml', presentacion=Producto.Presentacion.BOLSA_300ML):
-        return Producto.objects.create(nombre=nombre, presentacion=presentacion, unidad_medida='unidad')
+    def crear_producto(self, nombre='Bolsa 300ml', presentacion=Producto.Presentacion.BOLSA_INDIVIDUAL):
+        return Producto.objects.create(nombre=nombre, presentacion=presentacion)
 
     def crear_produccion(self, producto, cantidad, fecha, usuario, lote=None):
         return Produccion.objects.create(
@@ -323,16 +323,21 @@ class AlertasInsumosDashboardTests(DetectorHelpersMixin, TestCase):
         self.client.force_login(self.admin)
 
     def test_cuenta_solo_insumos_activos_bajo_o_igual_a_su_minimo(self):
+        tapas_sellado = CategoriaInsumo.objects.get(nombre='Tapas y sellado')
+        envases = CategoriaInsumo.objects.get(nombre='Envases y empaques')
+        unidad = UnidadMedida.objects.get(nombre='unidad')
+        rollo = UnidadMedida.objects.get(nombre='rollo')
+
         Insumo.objects.create(
-            nombre='Tapas', categoria='TAP', unidad_medida='unidad',
+            nombre='Tapas', categoria=tapas_sellado, unidad_medida=unidad,
             stock_actual=Decimal('5'), stock_minimo=Decimal('10'), activo=True,
         )
         Insumo.objects.create(
-            nombre='Cinta', categoria='CIN', unidad_medida='rollo',
+            nombre='Cinta', categoria=tapas_sellado, unidad_medida=rollo,
             stock_actual=Decimal('50'), stock_minimo=Decimal('10'), activo=True,
         )
         Insumo.objects.create(
-            nombre='Reempaque inactivo', categoria='REE', unidad_medida='unidad',
+            nombre='Reempaque inactivo', categoria=envases, unidad_medida=unidad,
             stock_actual=Decimal('0'), stock_minimo=Decimal('10'), activo=False,
         )
 
@@ -345,7 +350,8 @@ class AlertasInsumosDashboardTests(DetectorHelpersMixin, TestCase):
         # coincide con este caso por casualidad; el fix real está en que
         # ahora compara contra stock_minimo (probado arriba con minimo > 0).
         Insumo.objects.create(
-            nombre='Otro', categoria='OTR', unidad_medida='unidad',
+            nombre='Otro', categoria=CategoriaInsumo.objects.get(nombre='Otros'),
+            unidad_medida=UnidadMedida.objects.get(nombre='unidad'),
             stock_actual=Decimal('0'), stock_minimo=Decimal('0'), activo=True,
         )
 

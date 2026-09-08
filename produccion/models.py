@@ -2,18 +2,74 @@ from django.db import models
 from django.conf import settings
 
 
+class CategoriaInsumo(models.Model):
+    """Catálogo editable de categorías de insumo (admin, sin tocar código)."""
+    nombre = models.CharField(max_length=60, unique=True)
+    descripcion = models.CharField(max_length=200, blank=True)
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        verbose_name = 'Categoría de Insumo'
+        verbose_name_plural = 'Categorías de Insumo'
+        ordering = ['orden', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+class UnidadMedida(models.Model):
+    """Catálogo editable de unidades de medida (admin, sin tocar código)."""
+    nombre = models.CharField(max_length=40, unique=True)
+    descripcion = models.CharField(max_length=200, blank=True)
+    activo = models.BooleanField(default=True)
+    orden = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        verbose_name = 'Unidad de Medida'
+        verbose_name_plural = 'Unidades de Medida'
+        ordering = ['orden', 'nombre']
+
+    def __str__(self):
+        return self.nombre
+
+
+def _default_unidad_medida_producto():
+    """Mismo default que tenía el CharField viejo ('unidad'), ahora vía catálogo."""
+    return UnidadMedida.objects.filter(nombre='unidad').values_list('pk', flat=True).first()
+
+
 class Producto(models.Model):
     class Presentacion(models.TextChoices):
-        PACA_SIN_TAPA = 'PST', 'Paca sin tapa'
-        PACA_CON_TAPA = 'PCT', 'Paca con tapa'
-        BOTELLON = 'BOT', 'Botellón 20L'
-        BOLSA_5L = 'B5L', 'Bolsa 5L'
-        BOLSA_300ML = 'B3C', 'Bolsa 300ml'
-        HIELO = 'HIE', 'Hielo'
+        PACA = 'PAC', 'Paca'
+        BOLSA_INDIVIDUAL = 'BIN', 'Bolsa individual'
+        BOTELLON = 'BOT', 'Botellón'
+        CAJA = 'CAJ', 'Caja'
+        BULTO = 'BUL', 'Bulto'
 
-    nombre = models.CharField(max_length=60)
-    presentacion = models.CharField(max_length=3, choices=Presentacion.choices)
-    unidad_medida = models.CharField(max_length=20, default='unidad')
+    nombre = models.CharField(max_length=60, help_text='Ej: Agua sin tapa, Agua con tapa, Hielo')
+    presentacion = models.CharField(
+        max_length=3, choices=Presentacion.choices,
+        help_text='Forma de empaque del producto terminado',
+    )
+    contenido_cantidad = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text='Ej: 300 (junto con la unidad de contenido, ej. ml)',
+    )
+    contenido_unidad = models.ForeignKey(
+        UnidadMedida, on_delete=models.PROTECT, null=True, blank=True,
+        related_name='productos_contenido',
+        help_text='Unidad del contenido individual (ej. ml, L, kg)',
+    )
+    unidades_por_empaque = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Ej: 20, 25, 28 — cuántas unidades individuales trae el empaque (opcional)',
+    )
+    unidad_medida = models.ForeignKey(
+        UnidadMedida, on_delete=models.PROTECT, related_name='productos_unidad',
+        default=_default_unidad_medida_producto,
+        help_text='Unidad en que se cuenta el producto terminado (normalmente "unidad")',
+    )
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -26,20 +82,19 @@ class Producto(models.Model):
 
 
 class Insumo(models.Model):
-    class Categoria(models.TextChoices):
-        PLASTICO_SIN_TAPA = 'PST', 'Plástico sin tapa'
-        PLASTICO_CON_TAPA = 'PCT', 'Plástico con tapa'
-        TAPA = 'TAP', 'Tapas'
-        REEMPAQUE = 'REE', 'Material de reempaque'
-        CINTA = 'CIN', 'Cinta'
-        OTRO = 'OTR', 'Otro'
-
-    nombre = models.CharField(max_length=60)
-    categoria = models.CharField(max_length=3, choices=Categoria.choices)
-    unidad_medida = models.CharField(max_length=20)
-    stock_actual = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    nombre = models.CharField(max_length=60, help_text='Ej: Tapas plásticas, Cinta selladora')
+    categoria = models.ForeignKey(
+        CategoriaInsumo, on_delete=models.PROTECT, related_name='insumos',
+        help_text='Ej: Tapas y sellado — tapas plásticas, anillos de sellado, cinta selladora',
+    )
+    unidad_medida = models.ForeignKey(
+        UnidadMedida, on_delete=models.PROTECT, related_name='insumos',
+        help_text='Ej: rollo, kilogramo, millar',
+    )
+    stock_actual = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                       help_text='Ej: 8.20')
     stock_minimo = models.DecimalField(max_digits=10, decimal_places=2, default=0,
-                                       help_text='Cantidad mínima antes de generar alerta')
+                                       help_text='Cantidad mínima antes de generar alerta. Ej: 3')
     activo = models.BooleanField(default=True)
 
     class Meta:
