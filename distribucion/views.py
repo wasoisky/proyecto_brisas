@@ -179,6 +179,10 @@ class PlanillaRutaView(RolRequiredMixin, View):
         planilla = self._get_planilla(request, pk)
         accion = request.POST.get('accion')
 
+        if accion in ('agregar_entrega', 'agregar_averia') and planilla.estado != Planilla.Estado.ABIERTA:
+            messages.error(request, 'Esta planilla ya no está abierta; no se pueden agregar entregas ni averías.')
+            return redirect('distribucion:ruta_planilla', pk=pk)
+
         if accion == 'agregar_entrega':
             form = EntregaForm(request.POST)
             if form.is_valid():

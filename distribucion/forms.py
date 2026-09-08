@@ -3,6 +3,16 @@ from .models import Cliente, PrecioPorCategoria, Planilla, Entrega, Averia
 
 
 class ClienteForm(forms.ModelForm):
+    # BooleanField.formfield() del modelo siempre genera required=False (un
+    # checkbox "required" significa "debe estar marcado", no "debe tener un
+    # valor"), sin importar blank=False. Se declara explícito para exigir el
+    # consentimiento de la Ley 1581/2012 en el formulario.
+    autoriza_datos = forms.BooleanField(
+        required=True,
+        label=Cliente._meta.get_field('autoriza_datos').verbose_name,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+
     class Meta:
         model = Cliente
         fields = ['nombre', 'telefono', 'direccion', 'categoria', 'autoriza_datos', 'activo']
@@ -11,7 +21,6 @@ class ClienteForm(forms.ModelForm):
             'telefono': forms.TextInput(attrs={'class': 'form-control'}),
             'direccion': forms.TextInput(attrs={'class': 'form-control'}),
             'categoria': forms.Select(attrs={'class': 'form-select'}),
-            'autoriza_datos': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'activo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 

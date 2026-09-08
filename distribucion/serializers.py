@@ -3,6 +3,14 @@ from produccion.models import Producto
 from .models import Cliente, PrecioPorCategoria, Planilla, Entrega, Averia, Credito
 
 
+def _puede_operar_sobre_planilla(usuario, planilla):
+    """Un DIST solo puede crear entregas/averías en SU propia planilla.
+    ADMIN/superusuario no están restringidos (uso administrativo/soporte)."""
+    if usuario.is_superuser or getattr(usuario, 'rol', None) == 'ADMIN':
+        return True
+    return planilla.distribuidor_id == usuario.id
+
+
 class ProductoSerializer(serializers.ModelSerializer):
     presentacion_display = serializers.CharField(source='get_presentacion_display', read_only=True)
 
@@ -50,6 +58,11 @@ class EntregaSerializer(serializers.ModelSerializer):
         return float(obj.subtotal)
 
     def validate(self, data):
+        planilla = data.get('planilla')
+        request = self.context.get('request')
+        if planilla and request and not _puede_operar_sobre_planilla(request.user, planilla):
+            raise serializers.ValidationError('No puedes registrar entregas en una planilla de otro distribuidor.')
+
         cliente = data.get('cliente')
         producto = data.get('producto')
         if cliente and producto:
@@ -81,6 +94,13 @@ class AveriaSerializer(serializers.ModelSerializer):
         model = Averia
         fields = ['id', 'planilla', 'producto', 'cantidad', 'descripcion']
         read_only_fields = ['id']
+
+    def validate(self, data):
+        planilla = data.get('planilla')
+        request = self.context.get('request')
+        if planilla and request and not _puede_operar_sobre_planilla(request.user, planilla):
+            raise serializers.ValidationError('No puedes registrar averías en una planilla de otro distribuidor.')
+        return data
 
 
 class PlanillaSerializer(serializers.ModelSerializer):

@@ -48,7 +48,7 @@ class EntregaCreateAPIView(APIView):
     """Crea una entrega. Crea Crédito automáticamente si la modalidad es Crédito."""
 
     def post(self, request):
-        serializer = EntregaSerializer(data=request.data)
+        serializer = EntregaSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             entrega = serializer.save()
             return Response(EntregaSerializer(entrega).data, status=status.HTTP_201_CREATED)
@@ -58,7 +58,7 @@ class EntregaCreateAPIView(APIView):
 class AveriaCreateAPIView(APIView):
     permission_classes = [PermisoDist]
     def post(self, request):
-        serializer = AveriaSerializer(data=request.data)
+        serializer = AveriaSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)

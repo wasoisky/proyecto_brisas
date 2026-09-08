@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 
 from produccion.models import Producto
 
-from .forms import EntregaForm
+from .forms import ClienteForm, EntregaForm
 from .models import Averia, Cliente, Credito, Entrega, Planilla, PrecioPorCategoria
 
 Usuario = get_user_model()
@@ -240,3 +240,161 @@ class APIDistribucionTests(TestCase):
         resp = self.client.get(reverse('distribucion:api_productos'))
         nombres = [p['nombre'] for p in resp.data]
         self.assertNotIn('Descontinuado', nombres)
+
+
+class SeguridadEntregaAveriaAPITests(TestCase):
+    """D-02 (IDOR crítico): la API de sync no validaba que `planilla` en el
+    POST perteneciera al distribuidor autenticado — cualquier DIST podía
+    crear entregas/averías en la planilla de otro. Hallazgo de QA exploratoria
+    (proyecto-final-26), sesión 2026-09-07."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.dist_a = Usuario.objects.create_user(username='nico', password='brisas2024', rol='DIST')
+        self.dist_b = Usuario.objects.create_user(username='pedro', password='brisas2024', rol='DIST')
+        self.producto = Producto.objects.create(nombre='Botellón', presentacion='BOT')
+        PrecioPorCategoria.objects.create(
+            categoria=Cliente.Categoria.REGULAR, producto=self.producto, precio=Decimal('3000.00')
+        )
+        self.cliente = Cliente.objects.create(nombre='Tienda', categoria=Cliente.Categoria.REGULAR)
+        self.planilla_de_b = Planilla.objects.create(distribuidor=self.dist_b, fecha=date.today())
+
+    def test_dist_no_puede_crear_entrega_en_planilla_de_otro_distribuidor(self):
+        self.client.force_authenticate(self.dist_a)
+        resp = self.client.post(reverse('distribucion:api_entrega_create'), {
+            'planilla': self.planilla_de_b.pk,
+            'cliente': self.cliente.pk,
+            'producto': self.producto.pk,
+            'cantidad': 2,
+            'precio_unitario': '3000.00',
+            'modalidad_pago': Entrega.ModalidadPago.EFECTIVO,
+            'devolucion': 0,
+        })
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Entrega.objects.filter(planilla=self.planilla_de_b).exists())
+
+    def test_dist_no_puede_crear_averia_en_planilla_de_otro_distribuidor(self):
+        self.client.force_authenticate(self.dist_a)
+        resp = self.client.post(reverse('distribucion:api_averia_create'), {
+            'planilla': self.planilla_de_b.pk,
+            'producto': self.producto.pk,
+            'cantidad': 1,
+            'descripcion': 'rotura',
+        })
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Averia.objects.filter(planilla=self.planilla_de_b).exists())
+
+    def test_dist_si_puede_crear_entrega_en_su_propia_planilla(self):
+        self.client.force_authenticate(self.dist_b)
+        resp = self.client.post(reverse('distribucion:api_entrega_create'), {
+            'planilla': self.planilla_de_b.pk,
+            'cliente': self.cliente.pk,
+            'producto': self.producto.pk,
+            'cantidad': 2,
+            'precio_unitario': '3000.00',
+            'modalidad_pago': Entrega.ModalidadPago.EFECTIVO,
+            'devolucion': 0,
+        })
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+
+
+class PlanillaEstadoBloqueaEdicionTests(TestCase):
+    """D-03: PlanillaRutaView.post no verificaba planilla.estado antes de
+    agregar entrega/avería — se podía seguir editando una planilla ya
+    VALIDADA por el admin. Hallazgo de QA exploratoria, sesión 2026-09-07."""
+
+    def setUp(self):
+        self.distribuidor = Usuario.objects.create_user(username='nico', password='brisas2024', rol='DIST')
+        self.producto = Producto.objects.create(nombre='Botellón', presentacion='BOT')
+        PrecioPorCategoria.objects.create(
+            categoria=Cliente.Categoria.REGULAR, producto=self.producto, precio=Decimal('3000.00')
+        )
+        self.cliente = Cliente.objects.create(nombre='Tienda', categoria=Cliente.Categoria.REGULAR)
+        self.planilla_validada = Planilla.objects.create(
+            distribuidor=self.distribuidor, fecha=date.today(), estado=Planilla.Estado.VALIDADA,
+        )
+
+    def _post(self, planilla, data):
+        self.client.force_login(self.distribuidor)
+        return self.client.post(
+            reverse('distribucion:ruta_planilla', kwargs={'pk': planilla.pk}), data,
+        )
+
+    def test_no_se_puede_agregar_entrega_a_planilla_validada(self):
+        self._post(self.planilla_validada, {
+            'accion': 'agregar_entrega',
+            'cliente': self.cliente.pk,
+            'producto': self.producto.pk,
+            'cantidad': 2,
+            'precio_unitario': '3000.00',
+            'modalidad_pago': Entrega.ModalidadPago.EFECTIVO,
+            'devolucion': 0,
+        })
+        self.assertFalse(Entrega.objects.filter(planilla=self.planilla_validada).exists())
+
+    def test_no_se_puede_agregar_averia_a_planilla_validada(self):
+        self._post(self.planilla_validada, {
+            'accion': 'agregar_averia', 'producto': self.producto.pk, 'cantidad': 1, 'descripcion': 'x',
+        })
+        self.assertFalse(Averia.objects.filter(planilla=self.planilla_validada).exists())
+
+    def test_no_se_puede_agregar_entrega_a_planilla_pendiente_de_validacion(self):
+        planilla_pendiente = Planilla.objects.create(
+            distribuidor=self.distribuidor, fecha=date(2026, 1, 2),
+            estado=Planilla.Estado.PENDIENTE_VALIDACION,
+        )
+        self._post(planilla_pendiente, {
+            'accion': 'agregar_entrega',
+            'cliente': self.cliente.pk,
+            'producto': self.producto.pk,
+            'cantidad': 2,
+            'precio_unitario': '3000.00',
+            'modalidad_pago': Entrega.ModalidadPago.EFECTIVO,
+            'devolucion': 0,
+        })
+        self.assertFalse(Entrega.objects.filter(planilla=planilla_pendiente).exists())
+
+    def test_se_puede_agregar_entrega_a_planilla_abierta(self):
+        planilla_abierta = Planilla.objects.create(
+            distribuidor=self.distribuidor, fecha=date(2026, 1, 1), estado=Planilla.Estado.ABIERTA,
+        )
+        self._post(planilla_abierta, {
+            'accion': 'agregar_entrega',
+            'cliente': self.cliente.pk,
+            'producto': self.producto.pk,
+            'cantidad': 2,
+            'precio_unitario': '3000.00',
+            'modalidad_pago': Entrega.ModalidadPago.EFECTIVO,
+            'devolucion': 0,
+        })
+        self.assertTrue(Entrega.objects.filter(planilla=planilla_abierta).exists())
+
+
+class ClienteFormAutorizaDatosTests(TestCase):
+    """D-04: `autoriza_datos` (Ley 1581/2012) no era obligatorio en el
+    ModelForm — trampa clásica de Django: `BooleanField.formfield()` fuerza
+    `required=False` sin importar el `blank` del modelo. Hallazgo de QA
+    exploratoria, sesión 2026-09-07."""
+
+    def test_autoriza_datos_es_obligatorio(self):
+        form = ClienteForm(data={
+            'nombre': 'Tienda Nueva',
+            'telefono': '',
+            'direccion': '',
+            'categoria': Cliente.Categoria.REGULAR,
+            'activo': True,
+            # autoriza_datos deliberadamente omitido — como un checkbox sin marcar
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('autoriza_datos', form.errors)
+
+    def test_cliente_se_crea_si_autoriza_datos_esta_marcado(self):
+        form = ClienteForm(data={
+            'nombre': 'Tienda Nueva',
+            'telefono': '',
+            'direccion': '',
+            'categoria': Cliente.Categoria.REGULAR,
+            'autoriza_datos': True,
+            'activo': True,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
