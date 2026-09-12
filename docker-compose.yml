@@ -1,0 +1,44 @@
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_HOST: db
+    depends_on:
+      - db
+    expose:
+      - "8000"
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    # Expuesto directo en 8081 mientras el 80/443 los tiene otro proyecto del
+    # VPS (asojuntas). Cuando se coordine con el admin un reverse proxy hacia
+    # este puerto con el dominio, esto puede volver a atarse solo a localhost.
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - static_volume:/app/staticfiles:ro
+      - media_volume:/app/media:ro
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
+  static_volume:
+  media_volume:
