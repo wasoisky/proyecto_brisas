@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import IntegrityError
 from django.db.models import F, Sum
 from django.test import TestCase
 from django.urls import reverse
@@ -13,7 +14,7 @@ from activos.models import ActivoRetornable, MovimientoActivo
 from usuarios.models import Usuario
 
 from .detector import detectar_pv, detectar_vi, detectar_ac, ejecutar_deteccion
-from .models import Descuadre
+from .models import Descuadre, CierreAnual
 
 
 class DetectorHelpersMixin:
@@ -390,3 +391,19 @@ class ExportarVentasSmokeTests(DetectorHelpersMixin, TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/pdf')
+
+
+class CierreAnualModelTests(TestCase):
+    def test_crear_cierre_anual(self):
+        admin = Usuario.objects.create_user(username='admin_cierre', password='brisas2024', rol='ADMIN')
+        cierre = CierreAnual.objects.create(anio=2026, cerrado_por=admin)
+
+        self.assertTrue(cierre.cerrado)
+        self.assertIsNotNone(cierre.fecha_cierre)
+        self.assertIsNone(cierre.reabierto_por)
+
+    def test_anio_es_unico(self):
+        admin = Usuario.objects.create_user(username='admin_cierre2', password='brisas2024', rol='ADMIN')
+        CierreAnual.objects.create(anio=2026, cerrado_por=admin)
+        with self.assertRaises(IntegrityError):
+            CierreAnual.objects.create(anio=2026, cerrado_por=admin)
