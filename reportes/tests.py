@@ -1,8 +1,9 @@
-from datetime import date, timedelta
+from datetime import date, timedelta, date as date_cls
 from decimal import Decimal
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError
 from django.db.models import F, Sum
 from django.test import TestCase
@@ -15,6 +16,7 @@ from usuarios.models import Usuario
 
 from .detector import detectar_pv, detectar_vi, detectar_ac, ejecutar_deteccion
 from .models import Descuadre, CierreAnual
+from .cierres import anio_cerrado, validar_periodo_abierto
 
 
 class DetectorHelpersMixin:
@@ -407,3 +409,30 @@ class CierreAnualModelTests(TestCase):
         CierreAnual.objects.create(anio=2026, cerrado_por=admin)
         with self.assertRaises(IntegrityError):
             CierreAnual.objects.create(anio=2026, cerrado_por=admin)
+
+
+class CierresHelperTests(TestCase):
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_helper', password='brisas2024', rol='ADMIN')
+
+    def test_anio_sin_registro_no_esta_cerrado(self):
+        self.assertFalse(anio_cerrado(2026))
+
+    def test_anio_cerrado_devuelve_true(self):
+        CierreAnual.objects.create(anio=2026, cerrado_por=self.admin)
+        self.assertTrue(anio_cerrado(2026))
+
+    def test_anio_reabierto_no_esta_cerrado(self):
+        CierreAnual.objects.create(anio=2026, cerrado_por=self.admin, cerrado=False)
+        self.assertFalse(anio_cerrado(2026))
+
+    def test_validar_periodo_abierto_no_lanza_si_anio_abierto(self):
+        validar_periodo_abierto(date_cls(2026, 5, 1))  # no debe lanzar
+
+    def test_validar_periodo_abierto_lanza_si_anio_cerrado(self):
+        CierreAnual.objects.create(anio=2026, cerrado_por=self.admin)
+        with self.assertRaises(DjangoValidationError):
+            validar_periodo_abierto(date_cls(2026, 5, 1))
+
+    def test_validar_periodo_abierto_no_lanza_si_fecha_es_none(self):
+        validar_periodo_abierto(None)  # no debe lanzar
