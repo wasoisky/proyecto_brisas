@@ -17,4 +17,5 @@ urlpatterns = [
     path('cierres/', views.CierreAnualListView.as_view(), name='cierres'),
     path('cierres/crear/', views.CierreAnualCreateView.as_view(), name='cierre_crear'),
     path('cierres/<int:anio>/reabrir/', views.CierreAnualReabrirView.as_view(), name='cierre_reabrir'),
+    path('anual/', views.ReporteAnualView.as_view(), name='anual'),
 ]

@@ -486,3 +486,39 @@ class CierreAnualViewsTests(TestCase):
     def test_lista_de_cierres_solo_admin(self):
         resp = self.client.get(reverse('reportes:cierres'))
         self.assertEqual(resp.status_code, 200)
+
+
+class ReporteAnualViewTests(TestCase):
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_reporte_anual', password='brisas2024', rol='ADMIN')
+        self.client.force_login(self.admin)
+        self.producto = Producto.objects.create(nombre='Bolsa reporte anual', presentacion=Producto.Presentacion.BOLSA_INDIVIDUAL)
+
+    def test_totales_del_anio_correctos(self):
+        Produccion.objects.create(
+            fecha=date(2026, 3, 10), lote='LOTE-RA-1', producto=self.producto,
+            cantidad_producida=100, registrado_por=self.admin,
+        )
+        Produccion.objects.create(
+            fecha=date(2026, 7, 5), lote='LOTE-RA-2', producto=self.producto,
+            cantidad_producida=50, registrado_por=self.admin,
+        )
+        # Producción de otro año no debe contar
+        Produccion.objects.create(
+            fecha=date(2025, 3, 10), lote='LOTE-RA-3', producto=self.producto,
+            cantidad_producida=999, registrado_por=self.admin,
+        )
+
+        resp = self.client.get(reverse('reportes:anual'), {'anio': 2026})
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context['total_produccion'], 150)
+        self.assertEqual(resp.context['anio'], 2026)
+
+    def test_desglose_mensual_tiene_12_meses(self):
+        resp = self.client.get(reverse('reportes:anual'), {'anio': 2026})
+        self.assertEqual(len(resp.context['meses']), 12)
+
+    def test_sin_anio_en_query_usa_anio_actual(self):
+        resp = self.client.get(reverse('reportes:anual'))
+        self.assertEqual(resp.context['anio'], date.today().year)

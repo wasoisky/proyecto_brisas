@@ -529,3 +529,66 @@ class CierreAnualReabrirView(RolRequiredMixin, View):
         cierre.save(update_fields=['cerrado', 'reabierto_por', 'fecha_reapertura'])
         messages.success(request, f'Año {anio} reabierto.')
         return redirect('reportes:cierres')
+
+
+# ── Reporte anual ─────────────────────────────────────────────────────────────
+
+MESES_NOMBRE = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
+
+
+def _calcular_reporte_anual(anio):
+    produccion_qs = Produccion.objects.filter(fecha__year=anio)
+    entregas_qs = Entrega.objects.filter(planilla__fecha__year=anio).select_related('planilla')
+    creditos_qs = Credito.objects.filter(fecha_creacion__year=anio)
+    descuadres_qs = Descuadre.objects.filter(fecha__year=anio)
+
+    produccion_por_mes = {m: 0 for m in range(1, 13)}
+    for p in produccion_qs:
+        produccion_por_mes[p.fecha.month] += p.cantidad_producida
+
+    ventas_por_mes = {m: 0.0 for m in range(1, 13)}
+    total_ventas = 0.0
+    for e in entregas_qs:
+        ventas_por_mes[e.planilla.fecha.month] += float(e.subtotal)
+        total_ventas += float(e.subtotal)
+
+    meses = [
+        {
+            'mes': MESES_NOMBRE[m - 1],
+            'produccion': produccion_por_mes[m],
+            'ventas': ventas_por_mes[m],
+        }
+        for m in range(1, 13)
+    ]
+
+    return {
+        'anio': anio,
+        'total_produccion': sum(produccion_por_mes.values()),
+        'total_ventas': total_ventas,
+        'creditos_generados': float(creditos_qs.aggregate(t=Sum('monto'))['t'] or 0),
+        'creditos_pagados': float(creditos_qs.filter(pagado=True).aggregate(t=Sum('monto'))['t'] or 0),
+        'creditos_pendientes': float(creditos_qs.filter(pagado=False).aggregate(t=Sum('saldo_pendiente'))['t'] or 0),
+        'descuadres_por_severidad': {
+            'LEV': descuadres_qs.filter(severidad='LEV').count(),
+            'MOD': descuadres_qs.filter(severidad='MOD').count(),
+            'CRI': descuadres_qs.filter(severidad='CRI').count(),
+        },
+        'meses': meses,
+    }
+
+
+class ReporteAnualView(RolRequiredMixin, TemplateView):
+    roles_permitidos = SOLO_ADMIN
+    template_name = 'reportes/reporte_anual.html'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        try:
+            anio = int(self.request.GET.get('anio'))
+        except (TypeError, ValueError):
+            anio = date.today().year
+        ctx.update(_calcular_reporte_anual(anio))
+        return ctx
