@@ -12,6 +12,10 @@ services:
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
+    networks:
+      - default
+      - proxy_network
+      - postgres_network
 
   db:
     image: postgres:16-alpine
@@ -30,6 +34,10 @@ services:
     # el puerto asignado a cada proyecto; a este le tocó el 81. Se mantiene
     # publicado en todas las interfaces (no solo localhost) como respaldo por
     # si el proxy global todavía no enruta el dominio, para no perder acceso.
+    # También se conecta a proxy_network para que el proxy del host pueda
+    # llegar por red interna de Docker (necesario para que sirva /static/ y
+    # /media/ igual que hoy; si el proxy apunta directo al contenedor "web"
+    # esos dos endpoints dejan de funcionar).
     ports:
       - "81:80"
     volumes:
@@ -38,6 +46,16 @@ services:
       - media_volume:/app/media:ro
     depends_on:
       - web
+    networks:
+      - default
+      - proxy_network
+
+networks:
+  default:
+  proxy_network:
+    external: true
+  postgres_network:
+    external: true
 
 volumes:
   postgres_data:
