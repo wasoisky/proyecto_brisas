@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 
 
 class CategoriaInsumo(models.Model):
@@ -133,6 +134,11 @@ class Produccion(models.Model):
     def __str__(self):
         return f'Lote {self.lote} — {self.producto} ({self.cantidad_producida})'
 
+    def clean(self):
+        super().clean()
+        from reportes.cierres import validar_periodo_abierto
+        validar_periodo_abierto(self.fecha)
+
 
 class ConsumoInsumo(models.Model):
     """Insumos consumidos en un registro de producción."""
@@ -200,6 +206,11 @@ class CompraInsumo(models.Model):
     def total(self):
         return self.cantidad * self.precio_unitario
 
+    def clean(self):
+        super().clean()
+        from reportes.cierres import validar_periodo_abierto
+        validar_periodo_abierto(self.fecha)
+
 
 class Regalia(models.Model):
     """Producto terminado entregado sin cobro: obsequio, cortesía o promoción."""
@@ -236,3 +247,8 @@ class Regalia(models.Model):
 
     def __str__(self):
         return f'{self.fecha} — {self.producto} x{self.cantidad} ({self.get_motivo_display()})'
+
+    def clean(self):
+        super().clean()
+        from reportes.cierres import validar_periodo_abierto
+        validar_periodo_abierto(self.fecha)

@@ -457,3 +457,51 @@ class NavegacionRecetasTests(ProduccionTestMixin, TestCase):
         response = self.client.get(reverse('produccion:producto_list'))
         self.assertContains(response, reverse('produccion:receta_list'))
         self.assertContains(response, 'Recetas')
+
+
+from datetime import date
+from django.core.exceptions import ValidationError
+from reportes.models import CierreAnual
+
+
+class BloqueoPorCierreAnualTests(TestCase):
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_bloqueo', password='brisas2024', rol='ADMIN')
+        self.producto = Producto.objects.create(nombre='Bolsa test', presentacion=Producto.Presentacion.BOLSA_INDIVIDUAL)
+        CierreAnual.objects.create(anio=2025, cerrado_por=self.admin)
+
+    def test_produccion_en_anio_cerrado_falla_full_clean(self):
+        registro = Produccion(
+            fecha=date(2025, 6, 1), lote='LOTE-BLOQUEO-1', producto=self.producto,
+            cantidad_producida=10, registrado_por=self.admin,
+        )
+        with self.assertRaises(ValidationError):
+            registro.full_clean()
+
+    def test_produccion_en_anio_abierto_no_falla(self):
+        registro = Produccion(
+            fecha=date(2026, 6, 1), lote='LOTE-BLOQUEO-2', producto=self.producto,
+            cantidad_producida=10, registrado_por=self.admin,
+        )
+        registro.full_clean()  # no debe lanzar
+
+    def test_compra_insumo_en_anio_cerrado_falla(self):
+        insumo = Insumo.objects.create(
+            nombre='Insumo test',
+            categoria=CategoriaInsumo.objects.create(nombre='Cat test'),
+            unidad_medida=UnidadMedida.objects.create(nombre='unidad test'),
+        )
+        compra = CompraInsumo(
+            fecha=date(2025, 6, 1), insumo=insumo, cantidad=5,
+            precio_unitario=1000, registrado_por=self.admin,
+        )
+        with self.assertRaises(ValidationError):
+            compra.full_clean()
+
+    def test_regalia_en_anio_cerrado_falla(self):
+        regalia = Regalia(
+            fecha=date(2025, 6, 1), producto=self.producto, cantidad=1,
+            registrado_por=self.admin,
+        )
+        with self.assertRaises(ValidationError):
+            regalia.full_clean()
