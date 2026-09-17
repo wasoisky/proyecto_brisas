@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from produccion.models import Producto
+from reportes.cierres import anio_cerrado
 from .models import Cliente, PrecioPorCategoria, Planilla, Entrega, Averia, Credito
 
 
@@ -63,6 +64,11 @@ class EntregaSerializer(serializers.ModelSerializer):
         if planilla and request and not _puede_operar_sobre_planilla(request.user, planilla):
             raise serializers.ValidationError('No puedes registrar entregas en una planilla de otro distribuidor.')
 
+        if planilla and anio_cerrado(planilla.fecha.year):
+            raise serializers.ValidationError(
+                f'El año {planilla.fecha.year} ya está cerrado; no se pueden registrar entregas.'
+            )
+
         cliente = data.get('cliente')
         producto = data.get('producto')
         if cliente and producto:
@@ -100,6 +106,11 @@ class AveriaSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if planilla and request and not _puede_operar_sobre_planilla(request.user, planilla):
             raise serializers.ValidationError('No puedes registrar averías en una planilla de otro distribuidor.')
+
+        if planilla and anio_cerrado(planilla.fecha.year):
+            raise serializers.ValidationError(
+                f'El año {planilla.fecha.year} ya está cerrado; no se pueden registrar averías.'
+            )
         return data
 
 

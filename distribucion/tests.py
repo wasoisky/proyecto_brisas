@@ -492,3 +492,41 @@ class PlanillaRutaViewCierreAnualTests(TestCase):
         })
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(planilla_abierta.entregas.count(), 1)
+
+
+class EntregaAPICierreAnualTests(TestCase):
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_api_cierre', password='brisas2024', rol='ADMIN')
+        self.distribuidor = Usuario.objects.create_user(username='dist_api_cierre', password='brisas2024', rol='DIST')
+        self.cliente = Cliente.objects.create(nombre='Cliente API cierre', categoria='REG')
+        self.producto = Producto.objects.create(nombre='Bolsa API cierre', presentacion=Producto.Presentacion.BOLSA_INDIVIDUAL)
+        PrecioPorCategoria.objects.create(categoria='REG', producto=self.producto, precio=1000)
+        CierreAnual.objects.create(anio=2025, cerrado_por=self.admin)
+        self.planilla = Planilla.objects.create(fecha=date(2025, 6, 1), distribuidor=self.distribuidor)
+        self.client.force_login(self.distribuidor)
+
+    def test_post_entrega_a_planilla_de_anio_cerrado_es_rechazado(self):
+        resp = self.client.post(reverse('distribucion:api_entrega_create'), {
+            'planilla': self.planilla.pk, 'cliente': self.cliente.pk,
+            'producto': self.producto.pk, 'cantidad': 1, 'precio_unitario': 1000,
+            'modalidad_pago': 'EFE', 'devolucion': 0,
+        })
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(Entrega.objects.count(), 0)
+
+    def test_post_averia_a_planilla_de_anio_cerrado_es_rechazado(self):
+        resp = self.client.post(reverse('distribucion:api_averia_create'), {
+            'planilla': self.planilla.pk, 'producto': self.producto.pk,
+            'cantidad': 1, 'descripcion': '',
+        })
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(Averia.objects.count(), 0)
+
+    def test_post_entrega_a_planilla_de_anio_abierto_funciona(self):
+        planilla_abierta = Planilla.objects.create(fecha=date(2026, 6, 1), distribuidor=self.distribuidor)
+        resp = self.client.post(reverse('distribucion:api_entrega_create'), {
+            'planilla': planilla_abierta.pk, 'cliente': self.cliente.pk,
+            'producto': self.producto.pk, 'cantidad': 1, 'precio_unitario': 1000,
+            'modalidad_pago': 'EFE', 'devolucion': 0,
+        })
+        self.assertEqual(resp.status_code, 201)
