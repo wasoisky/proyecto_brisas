@@ -26,11 +26,12 @@ services:
   nginx:
     image: nginx:alpine
     restart: unless-stopped
-    # Expuesto directo en 8081 mientras el 80/443 los tiene otro proyecto del
-    # VPS (asojuntas). Cuando se coordine con el admin un reverse proxy hacia
-    # este puerto con el dominio, esto puede volver a atarse solo a localhost.
+    # El admin creó un proxy global en el host que enruta cada dominio hacia
+    # el puerto asignado a cada proyecto; a este le tocó el 81. Se mantiene
+    # publicado en todas las interfaces (no solo localhost) como respaldo por
+    # si el proxy global todavía no enruta el dominio, para no perder acceso.
     ports:
-      - "8081:80"
+      - "81:80"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - static_volume:/app/staticfiles:ro
