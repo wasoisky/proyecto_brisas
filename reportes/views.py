@@ -644,3 +644,87 @@ class ExportarReporteAnualExcelView(RolRequiredMixin, View):
         resp = HttpResponse(buf, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         resp['Content-Disposition'] = f'attachment; filename="{nombre}"'
         return resp
+
+
+class ExportarReporteAnualPDFView(RolRequiredMixin, View):
+    roles_permitidos = SOLO_ADMIN
+
+    def get(self, request):
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import cm
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+
+        try:
+            anio = int(request.GET.get('anio'))
+        except (TypeError, ValueError):
+            anio = date.today().year
+        datos = _calcular_reporte_anual(anio)
+
+        buf = BytesIO()
+        doc = SimpleDocTemplate(
+            buf, pagesize=A4,
+            leftMargin=1.5 * cm, rightMargin=1.5 * cm,
+            topMargin=1.8 * cm, bottomMargin=1.5 * cm,
+            title=f'Cierre anual {anio}',
+        )
+
+        NAVY = colors.HexColor('#1B2870')
+        LIGHT_BLUE = colors.HexColor('#EFF3FB')
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle('title', parent=styles['Heading1'], fontSize=14, textColor=NAVY, spaceAfter=2)
+        sub_style = ParagraphStyle('sub', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#64748b'))
+
+        story = [
+            Paragraph('Brisas de Pacandé', title_style),
+            Paragraph(f'Reporte de cierre anual · {anio} · Generado: {date.today().strftime("%d/%m/%Y")}', sub_style),
+            HRFlowable(width='100%', thickness=1, color=NAVY, spaceAfter=10),
+        ]
+
+        resumen_data = [
+            ['Producción total', str(datos['total_produccion'])],
+            ['Ventas totales', f"${datos['total_ventas']:,.0f}"],
+            ['Créditos generados', f"${datos['creditos_generados']:,.0f}"],
+            ['Créditos pagados', f"${datos['creditos_pagados']:,.0f}"],
+            ['Créditos pendientes', f"${datos['creditos_pendientes']:,.0f}"],
+            ['Descuadres leves', str(datos['descuadres_por_severidad']['LEV'])],
+            ['Descuadres moderados', str(datos['descuadres_por_severidad']['MOD'])],
+            ['Descuadres críticos', str(datos['descuadres_por_severidad']['CRI'])],
+        ]
+        resumen = Table(resumen_data, colWidths=[8 * cm, 5 * cm])
+        resumen.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white, LIGHT_BLUE]),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#CBD5E1')),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(resumen)
+        story.append(Spacer(1, 0.6 * cm))
+
+        mensual_data = [['Mes', 'Producción', 'Ventas']]
+        for m in datos['meses']:
+            mensual_data.append([m['mes'], str(m['produccion']), f"${m['ventas']:,.0f}"])
+        mensual = Table(mensual_data, colWidths=[5 * cm, 4 * cm, 4 * cm], repeatRows=1)
+        mensual.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+            ('ALIGN', (1, 0), (2, -1), 'RIGHT'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_BLUE]),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#CBD5E1')),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(mensual)
+
+        doc.build(story)
+        buf.seek(0)
+        nombre = f'cierre_anual_{anio}.pdf'
+        resp = HttpResponse(buf, content_type='application/pdf')
+        resp['Content-Disposition'] = f'attachment; filename="{nombre}"'
+        return resp

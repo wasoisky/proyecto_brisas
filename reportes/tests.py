@@ -536,3 +536,14 @@ class ExportarReporteAnualExcelViewTests(TestCase):
             resp['Content-Type'],
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         )
+
+
+class ExportarReporteAnualPDFViewTests(TestCase):
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_pdf_anual', password='brisas2024', rol='ADMIN')
+        self.client.force_login(self.admin)
+
+    def test_export_pdf_responde_200_con_content_type_correcto(self):
+        resp = self.client.get(reverse('reportes:anual_pdf'), {'anio': 2026})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'application/pdf')

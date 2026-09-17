@@ -19,4 +19,5 @@ urlpatterns = [
     path('cierres/<int:anio>/reabrir/', views.CierreAnualReabrirView.as_view(), name='cierre_reabrir'),
     path('anual/', views.ReporteAnualView.as_view(), name='anual'),
     path('anual/excel/', views.ExportarReporteAnualExcelView.as_view(), name='anual_excel'),
+    path('anual/pdf/', views.ExportarReporteAnualPDFView.as_view(), name='anual_pdf'),
 ]
