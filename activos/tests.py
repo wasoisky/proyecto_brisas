@@ -175,3 +175,27 @@ class BloqueoPorCierreAnualTests(TestCase):
             registrado_por=self.admin,
         )
         movimiento.full_clean()  # no debe lanzar
+
+
+class BajaActivoBloqueadaPorAnioCerradoTests(ActivosTestMixin, TestCase):
+    """Finding 2 (revisión final): BajaActivoCreateView asignaba
+    form.instance.movimiento después de que el formulario ya validó, así que
+    un Model.clean() no habría alcanzado a bloquear el año cerrado. El chequeo
+    va en dispatch(), antes de que la vista procese el POST."""
+
+    def setUp(self):
+        self.usuario = self.crear_usuario()
+        self.admin = Usuario.objects.create_user(username='admin_baja_cerrada', password='brisas2024', rol='ADMIN')
+        CierreAnual.objects.create(anio=2025, cerrado_por=self.admin)
+        self.movimiento = self.crear_movimiento(fecha=date(2025, 6, 1))
+        self.client.force_login(self.usuario)
+
+    def test_crear_baja_en_movimiento_de_anio_cerrado_no_crea_y_redirige(self):
+        url = reverse('activos:baja_create', args=[self.movimiento.pk])
+        response = self.client.post(url, {
+            'cantidad': 1, 'motivo': BajaActivo.Motivo.ROTURA, 'descripcion': '',
+        })
+        self.assertRedirects(
+            response, reverse('activos:movimiento_detail', args=[self.movimiento.pk])
+        )
+        self.assertEqual(BajaActivo.objects.count(), 0)

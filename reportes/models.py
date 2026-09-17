@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 
 
 class Descuadre(models.Model):
@@ -49,7 +50,7 @@ class CierreAnual(models.Model):
         on_delete=models.PROTECT,
         related_name='cierres_realizados',
     )
-    fecha_cierre = models.DateTimeField(auto_now_add=True)
+    fecha_cierre = models.DateTimeField(default=timezone.now)
     reabierto_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

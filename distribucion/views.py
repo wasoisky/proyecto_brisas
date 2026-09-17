@@ -129,6 +129,12 @@ class PlanillaRutaListView(RolRequiredMixin, View):
 
     def post(self, request):
         if request.POST.get('accion') == 'crear_planilla':
+            if anio_cerrado(date.today().year):
+                messages.error(
+                    request,
+                    f'El año {date.today().year} ya está cerrado; no se pueden crear planillas nuevas.',
+                )
+                return redirect('distribucion:ruta')
             planilla = Planilla.objects.create(
                 distribuidor=request.user,
                 fecha=date.today(),

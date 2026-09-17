@@ -14,6 +14,7 @@ class PermisoDist(IsAuthenticated):
         return request.user.is_superuser or getattr(request.user, 'rol', None) in ('ADMIN', 'DIST')
 
 from produccion.models import Producto
+from reportes.cierres import anio_cerrado
 from .models import Planilla, Entrega, Averia, Cliente
 from .serializers import (
     PlanillaSerializer, EntregaSerializer, AveriaSerializer,
@@ -34,6 +35,11 @@ class PlanillaActivaAPIView(APIView):
         return Response(PlanillaSerializer(planilla).data)
 
     def post(self, request):
+        if anio_cerrado(date.today().year):
+            return Response(
+                {'detail': f'El año {date.today().year} ya está cerrado; no se pueden crear planillas nuevas.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         planilla, created = Planilla.objects.get_or_create(
             distribuidor=request.user,
             fecha=date.today(),

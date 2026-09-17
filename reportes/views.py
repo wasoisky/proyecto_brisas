@@ -510,6 +510,7 @@ class CierreAnualCreateView(RolRequiredMixin, View):
             defaults={
                 'cerrado': True,
                 'cerrado_por': request.user,
+                'fecha_cierre': timezone.now(),
                 'reabierto_por': None,
                 'fecha_reapertura': None,
             },
@@ -569,7 +570,7 @@ def _calcular_reporte_anual(anio):
         'total_produccion': sum(produccion_por_mes.values()),
         'total_ventas': total_ventas,
         'creditos_generados': float(creditos_qs.aggregate(t=Sum('monto'))['t'] or 0),
-        'creditos_pagados': float(creditos_qs.filter(pagado=True).aggregate(t=Sum('monto'))['t'] or 0),
+        'creditos_pagados': float(creditos_qs.aggregate(t=Sum(F('monto') - F('saldo_pendiente')))['t'] or 0),
         'creditos_pendientes': float(creditos_qs.filter(pagado=False).aggregate(t=Sum('saldo_pendiente'))['t'] or 0),
         'descuadres_por_severidad': {
             'LEV': descuadres_qs.filter(severidad='LEV').count(),

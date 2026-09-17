@@ -10,7 +10,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from produccion.models import Insumo, Producto, Produccion, CategoriaInsumo, UnidadMedida
-from distribucion.models import Cliente, Planilla, Entrega
+from distribucion.models import Cliente, Planilla, Entrega, Credito
 from activos.models import ActivoRetornable, MovimientoActivo
 from usuarios.models import Usuario
 
@@ -483,7 +483,7 @@ class CierreAnualViewsTests(TestCase):
         resp = self.client.post(reverse('reportes:cierre_crear'), {'anio': 2025})
         self.assertFalse(CierreAnual.objects.filter(anio=2025).exists())
 
-    def test_lista_de_cierres_solo_admin(self):
+    def test_lista_de_cierres_responde_200_para_admin(self):
         resp = self.client.get(reverse('reportes:cierres'))
         self.assertEqual(resp.status_code, 200)
 
@@ -547,3 +547,127 @@ class ExportarReporteAnualPDFViewTests(TestCase):
         resp = self.client.get(reverse('reportes:anual_pdf'), {'anio': 2026})
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp['Content-Type'], 'application/pdf')
+
+
+class ExcepcionesDeBloqueoPorCierreAnualTests(TestCase):
+    """Finding 3 (revisión final): dos excepciones deliberadas al bloqueo de
+    años cerrados — pagar un Crédito y registrar un Descuadre deben seguir
+    funcionando sin importar que el año de la operación esté cerrado. Ninguno
+    de los dos modelos tiene (ni debe tener) un chequeo de anio_cerrado."""
+
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_excepciones_cierre', password='brisas2024', rol='ADMIN')
+        self.client.force_login(self.admin)
+        CierreAnual.objects.create(anio=2025, cerrado_por=self.admin)
+
+    def test_pagar_credito_de_entrega_en_anio_cerrado_no_se_bloquea(self):
+        distribuidor = Usuario.objects.create_user(username='dist_excepciones_cierre', password='brisas2024', rol='DIST')
+        producto = Producto.objects.create(nombre='Bolsa excepcion credito', presentacion=Producto.Presentacion.BOLSA_INDIVIDUAL)
+        cliente = Cliente.objects.create(nombre='Cliente excepcion credito', categoria=Cliente.Categoria.REGULAR)
+        planilla = Planilla.objects.create(fecha=date(2025, 6, 1), distribuidor=distribuidor)
+        entrega = Entrega.objects.create(
+            planilla=planilla, cliente=cliente, producto=producto,
+            cantidad=10, precio_unitario=Decimal('3000.00'),
+            modalidad_pago=Entrega.ModalidadPago.CREDITO,
+        )
+        credito = Credito.objects.create(
+            cliente=cliente, entrega=entrega,
+            monto=Decimal('30000.00'), saldo_pendiente=Decimal('30000.00'),
+        )
+
+        resp = self.client.post(
+            reverse('reportes:credito_pagar', kwargs={'pk': credito.pk}),
+            {'monto_pago': '30000.00'},
+        )
+
+        self.assertEqual(resp.status_code, 302)
+        credito.refresh_from_db()
+        self.assertTrue(credito.pagado)
+        self.assertEqual(credito.saldo_pendiente, 0)
+
+    def test_crear_descuadre_en_anio_cerrado_no_se_bloquea(self):
+        resp = self.client.post(reverse('reportes:descuadre_create'), {
+            'fecha': '2025-06-01',
+            'tipo': Descuadre.TipoDescuadre.PRODUCCION_VENTAS,
+            'severidad': Descuadre.Severidad.LEVE,
+            'descripcion': 'Descuadre de prueba en año cerrado',
+            'diferencia': '10.00',
+        })
+        self.assertTrue(Descuadre.objects.filter(fecha=date(2025, 6, 1)).exists())
+
+
+class CierreAnualFechaCierreSeActualizaTests(TestCase):
+    """Finding 4 (revisión final): fecha_cierre usaba auto_now_add, así que
+    un re-cierre (update_or_create sobre una fila existente) no actualizaba
+    el timestamp. Ahora la vista pasa 'fecha_cierre': timezone.now() en los
+    defaults, y el campo usa default=timezone.now (no auto_now_add)."""
+
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_fecha_cierre', password='brisas2024', rol='ADMIN')
+        self.client.force_login(self.admin)
+
+    def test_recerrar_un_anio_actualiza_fecha_cierre(self):
+        import time
+
+        self.client.post(reverse('reportes:cierre_crear'), {'anio': 2025})
+        primer_cierre = CierreAnual.objects.get(anio=2025)
+        primera_fecha = primer_cierre.fecha_cierre
+
+        time.sleep(0.01)
+
+        self.client.post(reverse('reportes:cierre_reabrir', kwargs={'anio': 2025}))
+
+        time.sleep(0.01)
+
+        self.client.post(reverse('reportes:cierre_crear'), {'anio': 2025})
+        segundo_cierre = CierreAnual.objects.get(anio=2025)
+
+        self.assertGreater(segundo_cierre.fecha_cierre, primera_fecha)
+        self.assertTrue(segundo_cierre.cerrado)
+
+
+class ReporteAnualCreditosParcialesTests(TestCase):
+    """Finding 5 (revisión final): creditos_pagados solo sumaba Credito.monto
+    de los créditos con pagado=True, así que un abono parcial (saldo_pendiente
+    bajó pero pagado sigue False) no aparecía como dinero recaudado en el
+    reporte anual — generados != pagados + pendientes."""
+
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_creditos_parciales', password='brisas2024', rol='ADMIN')
+        self.client.force_login(self.admin)
+        self.distribuidor = Usuario.objects.create_user(username='dist_creditos_parciales', password='brisas2024', rol='DIST')
+        self.producto = Producto.objects.create(nombre='Bolsa creditos parciales', presentacion=Producto.Presentacion.BOLSA_INDIVIDUAL)
+        self.cliente = Cliente.objects.create(nombre='Cliente creditos parciales', categoria=Cliente.Categoria.REGULAR)
+        self.planilla = Planilla.objects.create(fecha=date.today(), distribuidor=self.distribuidor)
+
+    def _crear_entrega(self):
+        return Entrega.objects.create(
+            planilla=self.planilla, cliente=self.cliente, producto=self.producto,
+            cantidad=1, precio_unitario=Decimal('100.00'),
+            modalidad_pago=Entrega.ModalidadPago.CREDITO,
+        )
+
+    def test_creditos_pagados_incluye_abonos_parciales(self):
+        entrega_pagado = self._crear_entrega()
+        Credito.objects.create(
+            cliente=self.cliente, entrega=entrega_pagado,
+            monto=Decimal('100.00'), saldo_pendiente=Decimal('0.00'), pagado=True,
+        )
+        entrega_parcial = self._crear_entrega()
+        Credito.objects.create(
+            cliente=self.cliente, entrega=entrega_parcial,
+            monto=Decimal('100.00'), saldo_pendiente=Decimal('30.00'), pagado=False,
+        )
+
+        resp = self.client.get(reverse('reportes:anual'), {'anio': date.today().year})
+        ctx = resp.context
+
+        self.assertEqual(ctx['creditos_generados'], 200.0)
+        self.assertEqual(ctx['creditos_pendientes'], 30.0)
+        # Antes del fix: creditos_pagados == 100.0 (ignoraba el abono de 70 del
+        # crédito parcial). El cálculo correcto cuenta lo efectivamente
+        # recaudado (monto - saldo_pendiente) sin importar el flag `pagado`.
+        self.assertEqual(ctx['creditos_pagados'], 170.0)
+        self.assertEqual(
+            ctx['creditos_generados'], ctx['creditos_pagados'] + ctx['creditos_pendientes']
+        )

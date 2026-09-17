@@ -530,3 +530,28 @@ class EntregaAPICierreAnualTests(TestCase):
             'modalidad_pago': 'EFE', 'devolucion': 0,
         })
         self.assertEqual(resp.status_code, 201)
+
+
+class CreacionDePlanillaBloqueadaPorAnioCerradoTests(TestCase):
+    """Finding 1 (revisión final): tanto la vista web de ruta como la API de
+    sincronización crean la Planilla del día siempre con fecha=date.today();
+    si el año en curso está cerrado, ninguna de las dos debe crear la fila."""
+
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_crear_planilla_cerrado', password='brisas2024', rol='ADMIN')
+        self.distribuidor = Usuario.objects.create_user(username='dist_crear_planilla_cerrado', password='brisas2024', rol='DIST')
+        CierreAnual.objects.create(anio=date.today().year, cerrado_por=self.admin)
+        self.client.force_login(self.distribuidor)
+
+    def test_crear_planilla_desde_vista_ruta_en_anio_cerrado_no_crea_planilla(self):
+        antes = Planilla.objects.count()
+        resp = self.client.post(reverse('distribucion:ruta'), {'accion': 'crear_planilla'})
+        self.assertEqual(Planilla.objects.count(), antes)
+        self.assertEqual(resp.status_code, 302)
+
+    def test_post_planilla_activa_api_en_anio_cerrado_devuelve_400_y_no_crea(self):
+        resp = self.client.post(reverse('distribucion:api_planilla_activa'))
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(
+            Planilla.objects.filter(distribuidor=self.distribuidor, fecha=date.today()).exists()
+        )

@@ -6,6 +6,7 @@ from usuarios.mixins import RolRequiredMixin, ADMIN_PROD
 from django.urls import reverse_lazy
 from django.views.generic import TemplateView, ListView, CreateView, DetailView
 
+from reportes.cierres import anio_cerrado
 from .models import ActivoRetornable, MovimientoActivo
 from .forms import BajaActivoForm, MovimientoActivoForm
 
@@ -98,6 +99,16 @@ class BajaActivoCreateView(RolRequiredMixin, CreateView):
 
     def get_movimiento(self):
         return get_object_or_404(MovimientoActivo, pk=self.kwargs['movimiento_pk'])
+
+    def dispatch(self, request, *args, **kwargs):
+        movimiento = self.get_movimiento()
+        if anio_cerrado(movimiento.fecha.year):
+            messages.error(
+                request,
+                f'El año {movimiento.fecha.year} ya está cerrado; no se pueden registrar bajas.',
+            )
+            return redirect('activos:movimiento_detail', pk=self.kwargs['movimiento_pk'])
+        return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
         form.instance.movimiento = self.get_movimiento()
