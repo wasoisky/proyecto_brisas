@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 
 
 class ActivoRetornable(models.Model):
@@ -62,6 +63,11 @@ class MovimientoActivo(models.Model):
     def total(self):
         return (self.cantidad_en_planta_lleno + self.cantidad_en_planta_vacio
                 + self.cantidad_en_clientes + self.cantidad_baja)
+
+    def clean(self):
+        super().clean()
+        from reportes.cierres import validar_periodo_abierto
+        validar_periodo_abierto(self.fecha)
 
 
 class BajaActivo(models.Model):

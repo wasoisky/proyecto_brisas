@@ -1,8 +1,12 @@
+from datetime import date
+
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
 
+from reportes.models import CierreAnual
 from .models import ActivoRetornable, BajaActivo, MovimientoActivo
 
 Usuario = get_user_model()
@@ -150,3 +154,24 @@ class BajaActivoViewTests(ActivosTestMixin, TestCase):
         })
         self.assertRedirects(response, '/distribucion/ruta/')
         self.assertEqual(BajaActivo.objects.count(), 0)
+
+
+class BloqueoPorCierreAnualTests(TestCase):
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_bloqueo_act', password='brisas2024', rol='ADMIN')
+        CierreAnual.objects.create(anio=2025, cerrado_por=self.admin)
+
+    def test_movimiento_en_anio_cerrado_falla_full_clean(self):
+        movimiento = MovimientoActivo(
+            fecha=date(2025, 6, 1), momento='INI', tipo_activo='BOT',
+            registrado_por=self.admin,
+        )
+        with self.assertRaises(ValidationError):
+            movimiento.full_clean()
+
+    def test_movimiento_en_anio_abierto_no_falla(self):
+        movimiento = MovimientoActivo(
+            fecha=date(2026, 6, 1), momento='INI', tipo_activo='BOT',
+            registrado_por=self.admin,
+        )
+        movimiento.full_clean()  # no debe lanzar
