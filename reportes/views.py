@@ -592,3 +592,55 @@ class ReporteAnualView(RolRequiredMixin, TemplateView):
             anio = date.today().year
         ctx.update(_calcular_reporte_anual(anio))
         return ctx
+
+
+class ExportarReporteAnualExcelView(RolRequiredMixin, View):
+    roles_permitidos = SOLO_ADMIN
+
+    def get(self, request):
+        try:
+            anio = int(request.GET.get('anio'))
+        except (TypeError, ValueError):
+            anio = date.today().year
+        datos = _calcular_reporte_anual(anio)
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f'Cierre {anio}'
+
+        header_font = Font(bold=True, color='FFFFFF')
+        header_fill = PatternFill('solid', fgColor='1F4E79')
+
+        ws.append(['Resumen', anio])
+        ws.append(['Producción total', datos['total_produccion']])
+        ws.append(['Ventas totales', datos['total_ventas']])
+        ws.append(['Créditos generados', datos['creditos_generados']])
+        ws.append(['Créditos pagados', datos['creditos_pagados']])
+        ws.append(['Créditos pendientes', datos['creditos_pendientes']])
+        ws.append(['Descuadres leves', datos['descuadres_por_severidad']['LEV']])
+        ws.append(['Descuadres moderados', datos['descuadres_por_severidad']['MOD']])
+        ws.append(['Descuadres críticos', datos['descuadres_por_severidad']['CRI']])
+        ws.append([])
+
+        headers = ['Mes', 'Producción', 'Ventas']
+        header_row = ws.max_row + 1
+        for col, h in enumerate(headers, 1):
+            cell = ws.cell(row=header_row, column=col, value=h)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center')
+
+        for m in datos['meses']:
+            ws.append([m['mes'], m['produccion'], m['ventas']])
+
+        for col in ws.columns:
+            valores = [len(str(c.value or '')) for c in col]
+            ws.column_dimensions[col[0].column_letter].width = max(valores) + 4
+
+        buf = BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        nombre = f'cierre_anual_{anio}.xlsx'
+        resp = HttpResponse(buf, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        resp['Content-Disposition'] = f'attachment; filename="{nombre}"'
+        return resp

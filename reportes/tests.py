@@ -522,3 +522,17 @@ class ReporteAnualViewTests(TestCase):
     def test_sin_anio_en_query_usa_anio_actual(self):
         resp = self.client.get(reverse('reportes:anual'))
         self.assertEqual(resp.context['anio'], date.today().year)
+
+
+class ExportarReporteAnualExcelViewTests(TestCase):
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_excel_anual', password='brisas2024', rol='ADMIN')
+        self.client.force_login(self.admin)
+
+    def test_export_excel_responde_200_con_content_type_correcto(self):
+        resp = self.client.get(reverse('reportes:anual_excel'), {'anio': 2026})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp['Content-Type'],
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
