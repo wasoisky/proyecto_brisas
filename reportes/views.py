@@ -19,7 +19,7 @@ from produccion.models import Produccion, Insumo
 from usuarios.models import Usuario
 from .detector import ejecutar_deteccion
 from .forms import DescuadreForm, FiltroVentasForm
-from .models import Descuadre
+from .models import Descuadre, CierreAnual
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -466,3 +466,66 @@ class ExportarVentasPDFView(RolRequiredMixin, View):
         resp = HttpResponse(buf, content_type='application/pdf')
         resp['Content-Disposition'] = f'attachment; filename="{nombre}"'
         return resp
+
+
+# ── Cierre anual ──────────────────────────────────────────────────────────────
+
+class CierreAnualListView(RolRequiredMixin, ListView):
+    roles_permitidos = SOLO_ADMIN
+    model = CierreAnual
+    template_name = 'reportes/cierres.html'
+    context_object_name = 'cierres'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['anio_actual'] = date.today().year
+        return ctx
+
+
+class CierreAnualCreateView(RolRequiredMixin, View):
+    roles_permitidos = SOLO_ADMIN
+
+    def post(self, request):
+        try:
+            anio = int(request.POST.get('anio'))
+        except (TypeError, ValueError):
+            messages.error(request, 'Año inválido.')
+            return redirect('reportes:cierres')
+
+        confirmar = request.POST.get('confirmar') == '1'
+        pendientes = Planilla.objects.filter(
+            fecha__year=anio, estado=Planilla.Estado.PENDIENTE_VALIDACION,
+        ).count()
+
+        if pendientes and not confirmar:
+            messages.warning(
+                request,
+                f'Hay {pendientes} planilla(s) del año {anio} pendientes de validación. '
+                f'Vuelve a intentar el cierre confirmando si quieres continuar de todos modos.',
+            )
+            return redirect('reportes:cierres')
+
+        CierreAnual.objects.update_or_create(
+            anio=anio,
+            defaults={
+                'cerrado': True,
+                'cerrado_por': request.user,
+                'reabierto_por': None,
+                'fecha_reapertura': None,
+            },
+        )
+        messages.success(request, f'Año {anio} cerrado correctamente.')
+        return redirect('reportes:cierres')
+
+
+class CierreAnualReabrirView(RolRequiredMixin, View):
+    roles_permitidos = SOLO_ADMIN
+
+    def post(self, request, anio):
+        cierre = get_object_or_404(CierreAnual, anio=anio)
+        cierre.cerrado = False
+        cierre.reabierto_por = request.user
+        cierre.fecha_reapertura = timezone.now()
+        cierre.save(update_fields=['cerrado', 'reabierto_por', 'fecha_reapertura'])
+        messages.success(request, f'Año {anio} reabierto.')
+        return redirect('reportes:cierres')

@@ -436,3 +436,53 @@ class CierresHelperTests(TestCase):
 
     def test_validar_periodo_abierto_no_lanza_si_fecha_es_none(self):
         validar_periodo_abierto(None)  # no debe lanzar
+
+
+class CierreAnualViewsTests(TestCase):
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_vista_cierre', password='brisas2024', rol='ADMIN')
+        self.client.force_login(self.admin)
+
+    def test_cerrar_anio_sin_planillas_pendientes_crea_cierre(self):
+        resp = self.client.post(reverse('reportes:cierre_crear'), {'anio': 2025})
+        self.assertEqual(resp.status_code, 302)
+        cierre = CierreAnual.objects.get(anio=2025)
+        self.assertTrue(cierre.cerrado)
+        self.assertEqual(cierre.cerrado_por, self.admin)
+
+    def test_cerrar_anio_con_planillas_pendientes_avisa_y_no_cierra_sin_confirmar(self):
+        distribuidor = Usuario.objects.create_user(username='dist_cierre_pend', password='brisas2024', rol='DIST')
+        Planilla.objects.create(
+            fecha=date(2025, 6, 1), distribuidor=distribuidor,
+            estado=Planilla.Estado.PENDIENTE_VALIDACION,
+        )
+        resp = self.client.post(reverse('reportes:cierre_crear'), {'anio': 2025})
+        self.assertFalse(CierreAnual.objects.filter(anio=2025).exists())
+
+    def test_cerrar_anio_con_planillas_pendientes_confirmando_si_cierra(self):
+        distribuidor = Usuario.objects.create_user(username='dist_cierre_pend2', password='brisas2024', rol='DIST')
+        Planilla.objects.create(
+            fecha=date(2025, 6, 1), distribuidor=distribuidor,
+            estado=Planilla.Estado.PENDIENTE_VALIDACION,
+        )
+        resp = self.client.post(reverse('reportes:cierre_crear'), {'anio': 2025, 'confirmar': '1'})
+        self.assertTrue(CierreAnual.objects.filter(anio=2025, cerrado=True).exists())
+
+    def test_reabrir_anio_cerrado(self):
+        CierreAnual.objects.create(anio=2025, cerrado_por=self.admin)
+        resp = self.client.post(reverse('reportes:cierre_reabrir', kwargs={'anio': 2025}))
+        self.assertEqual(resp.status_code, 302)
+        cierre = CierreAnual.objects.get(anio=2025)
+        self.assertFalse(cierre.cerrado)
+        self.assertEqual(cierre.reabierto_por, self.admin)
+        self.assertIsNotNone(cierre.fecha_reapertura)
+
+    def test_no_admin_no_puede_cerrar_anio(self):
+        prod = Usuario.objects.create_user(username='prod_no_cierre', password='brisas2024', rol='PROD')
+        self.client.force_login(prod)
+        resp = self.client.post(reverse('reportes:cierre_crear'), {'anio': 2025})
+        self.assertFalse(CierreAnual.objects.filter(anio=2025).exists())
+
+    def test_lista_de_cierres_solo_admin(self):
+        resp = self.client.get(reverse('reportes:cierres'))
+        self.assertEqual(resp.status_code, 200)

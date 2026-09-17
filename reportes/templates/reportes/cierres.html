@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Cierres Anuales — Brisas de Pacandé{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-lock me-2"></i>Cierres anuales</h4>
+
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Cerrar un año</div>
+  <div class="card-body">
+    <form method="post" action="{% url 'reportes:cierre_crear' %}" class="row g-2 align-items-end">
+      {% csrf_token %}
+      <div class="col-auto">
+        <label class="form-label small mb-1">Año</label>
+        <input type="number" name="anio" class="form-control" value="{{ anio_actual }}" min="2000" max="2100">
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input type="checkbox" name="confirmar" value="1" class="form-check-input" id="confirmarCierre">
+          <label class="form-check-label small" for="confirmarCierre">
+            Cerrar de todas formas si hay planillas pendientes de validación
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-danger btn-sm">
+          <i class="bi bi-lock-fill me-1"></i>Cerrar año
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header fw-semibold">Historial</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Año</th>
+          <th>Estado</th>
+          <th>Cerrado por</th>
+          <th>Fecha de cierre</th>
+          <th>Reabierto por</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cierre in cierres %}
+        <tr>
+          <td>{{ cierre.anio }}</td>
+          <td>
+            {% if cierre.cerrado %}
+              <span class="badge bg-danger">Cerrado</span>
+            {% else %}
+              <span class="badge bg-success">Abierto</span>
+            {% endif %}
+          </td>
+          <td>{{ cierre.cerrado_por.get_full_name|default:cierre.cerrado_por.username }}</td>
+          <td>{{ cierre.fecha_cierre|date:"d/m/Y H:i" }}</td>
+          <td>{{ cierre.reabierto_por.get_full_name|default:cierre.reabierto_por.username|default:"—" }}</td>
+          <td class="text-end">
+            {% if cierre.cerrado %}
+            <form method="post" action="{% url 'reportes:cierre_reabrir' anio=cierre.anio %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-unlock me-1"></i>Reabrir
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-muted py-3">No hay años cerrados todavía.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

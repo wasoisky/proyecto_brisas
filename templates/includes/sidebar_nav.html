@@ -186,6 +186,12 @@
             <i class="bi bi-exclamation-triangle"></i> Descuadres
           </a>
         </li>
+        <li>
+          <a class="nav-link {% if '/reportes/cierres' in p %}active{% endif %}"
+             href="{% url 'reportes:cierres' %}">
+            <i class="bi bi-lock"></i> Cierres anuales
+          </a>
+        </li>
       </ul>
     </div>
   </li>

@@ -14,4 +14,7 @@ urlpatterns = [
     path('descuadres/<int:pk>/resolver/', views.DescuadreResolverView.as_view(), name='descuadre_resolver'),
     path('creditos/', views.CreditosPendientesView.as_view(), name='creditos'),
     path('creditos/<int:pk>/pagar/', views.CreditoPagarView.as_view(), name='credito_pagar'),
+    path('cierres/', views.CierreAnualListView.as_view(), name='cierres'),
+    path('cierres/crear/', views.CierreAnualCreateView.as_view(), name='cierre_crear'),
+    path('cierres/<int:anio>/reabrir/', views.CierreAnualReabrirView.as_view(), name='cierre_reabrir'),
 ]
