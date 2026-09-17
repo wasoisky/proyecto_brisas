@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
 from produccion.models import Producto
@@ -70,6 +71,11 @@ class Planilla(models.Model):
     def __str__(self):
         return f'Planilla {self.fecha} — {self.distribuidor.get_full_name() or self.distribuidor.username}'
 
+    def clean(self):
+        super().clean()
+        from reportes.cierres import validar_periodo_abierto
+        validar_periodo_abierto(self.fecha)
+
 
 class Entrega(models.Model):
     class ModalidadPago(models.TextChoices):
@@ -98,6 +104,12 @@ class Entrega(models.Model):
     def subtotal(self):
         return (self.cantidad - self.devolucion) * self.precio_unitario
 
+    def clean(self):
+        super().clean()
+        if self.planilla_id:
+            from reportes.cierres import validar_periodo_abierto
+            validar_periodo_abierto(self.planilla.fecha)
+
 
 class Averia(models.Model):
     planilla = models.ForeignKey(Planilla, on_delete=models.CASCADE, related_name='averias')
@@ -111,6 +123,12 @@ class Averia(models.Model):
 
     def __str__(self):
         return f'Avería {self.producto.nombre} x{self.cantidad} — {self.planilla}'
+
+    def clean(self):
+        super().clean()
+        if self.planilla_id:
+            from reportes.cierres import validar_periodo_abierto
+            validar_periodo_abierto(self.planilla.fecha)
 
 
 class Credito(models.Model):

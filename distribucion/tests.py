@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
@@ -398,3 +399,50 @@ class ClienteFormAutorizaDatosTests(TestCase):
             'activo': True,
         })
         self.assertTrue(form.is_valid(), form.errors)
+
+
+from reportes.models import CierreAnual
+
+
+class BloqueoPorCierreAnualTests(TestCase):
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_bloqueo_dist', password='brisas2024', rol='ADMIN')
+        self.distribuidor = Usuario.objects.create_user(username='dist_bloqueo', password='brisas2024', rol='DIST')
+        self.producto = Producto.objects.create(nombre='Bolsa test dist', presentacion=Producto.Presentacion.BOLSA_INDIVIDUAL)
+        self.cliente = Cliente.objects.create(nombre='Cliente bloqueo', categoria='REG')
+        CierreAnual.objects.create(anio=2025, cerrado_por=self.admin)
+
+    def test_planilla_en_anio_cerrado_falla_full_clean(self):
+        planilla = Planilla(fecha=date(2025, 6, 1), distribuidor=self.distribuidor)
+        with self.assertRaises(ValidationError):
+            planilla.full_clean()
+
+    def test_planilla_en_anio_abierto_no_falla(self):
+        planilla = Planilla(fecha=date(2026, 6, 1), distribuidor=self.distribuidor)
+        planilla.full_clean()  # no debe lanzar
+
+    def test_entrega_con_planilla_de_anio_cerrado_falla(self):
+        planilla = Planilla.objects.create(fecha=date(2025, 6, 1), distribuidor=self.distribuidor)
+        entrega = Entrega(
+            planilla=planilla, cliente=self.cliente, producto=self.producto,
+            cantidad=1, precio_unitario=1000, modalidad_pago='EFE',
+        )
+        with self.assertRaises(ValidationError):
+            entrega.full_clean()
+
+    def test_averia_con_planilla_de_anio_cerrado_falla(self):
+        planilla = Planilla.objects.create(fecha=date(2025, 6, 1), distribuidor=self.distribuidor)
+        averia = Averia(planilla=planilla, producto=self.producto, cantidad=1)
+        with self.assertRaises(ValidationError):
+            averia.full_clean()
+
+    def test_entrega_sin_planilla_asignada_no_falla_por_cierre(self):
+        # Simula el momento dentro de is_valid() en PlanillaRutaView, antes de
+        # asignar `entrega.planilla`: no debe reventar con RelatedObjectDoesNotExist.
+        entrega = Entrega(
+            cliente=self.cliente, producto=self.producto,
+            cantidad=1, precio_unitario=1000, modalidad_pago='EFE',
+        )
+        # full_clean() completo fallaría por 'planilla' requerido (no seteado);
+        # probamos clean() aislado, que es lo que nos interesa acá.
+        entrega.clean()  # no debe lanzar ValidationError por el chequeo de cierre
