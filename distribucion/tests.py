@@ -446,3 +446,49 @@ class BloqueoPorCierreAnualTests(TestCase):
         # full_clean() completo fallaría por 'planilla' requerido (no seteado);
         # probamos clean() aislado, que es lo que nos interesa acá.
         entrega.clean()  # no debe lanzar ValidationError por el chequeo de cierre
+
+
+class PlanillaRutaViewCierreAnualTests(TestCase):
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='admin_ruta_cierre', password='brisas2024', rol='ADMIN')
+        self.distribuidor = Usuario.objects.create_user(username='dist_ruta_cierre', password='brisas2024', rol='DIST')
+        self.cliente = Cliente.objects.create(nombre='Cliente ruta cierre', categoria='REG')
+        self.producto = Producto.objects.create(nombre='Bolsa ruta cierre', presentacion=Producto.Presentacion.BOLSA_INDIVIDUAL)
+        PrecioPorCategoria.objects.create(categoria='REG', producto=self.producto, precio=1000)
+        CierreAnual.objects.create(anio=2025, cerrado_por=self.admin)
+        self.planilla = Planilla.objects.create(
+            fecha=date(2025, 6, 1), distribuidor=self.distribuidor, estado=Planilla.Estado.ABIERTA,
+        )
+        self.client.force_login(self.distribuidor)
+
+    def test_agregar_entrega_en_planilla_de_anio_cerrado_es_rechazado(self):
+        url = reverse('distribucion:ruta_planilla', kwargs={'pk': self.planilla.pk})
+        resp = self.client.post(url, {
+            'accion': 'agregar_entrega',
+            'cliente': self.cliente.pk, 'producto': self.producto.pk,
+            'cantidad': 1, 'precio_unitario': 1000, 'modalidad_pago': 'EFE', 'devolucion': 0,
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.planilla.entregas.count(), 0)
+
+    def test_agregar_averia_en_planilla_de_anio_cerrado_es_rechazado(self):
+        url = reverse('distribucion:ruta_planilla', kwargs={'pk': self.planilla.pk})
+        resp = self.client.post(url, {
+            'accion': 'agregar_averia',
+            'producto': self.producto.pk, 'cantidad': 1, 'descripcion': 'test',
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.planilla.averias.count(), 0)
+
+    def test_agregar_entrega_en_planilla_de_anio_abierto_funciona(self):
+        planilla_abierta = Planilla.objects.create(
+            fecha=date(2026, 6, 1), distribuidor=self.distribuidor, estado=Planilla.Estado.ABIERTA,
+        )
+        url = reverse('distribucion:ruta_planilla', kwargs={'pk': planilla_abierta.pk})
+        resp = self.client.post(url, {
+            'accion': 'agregar_entrega',
+            'cliente': self.cliente.pk, 'producto': self.producto.pk,
+            'cantidad': 1, 'precio_unitario': 1000, 'modalidad_pago': 'EFE', 'devolucion': 0,
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(planilla_abierta.entregas.count(), 1)

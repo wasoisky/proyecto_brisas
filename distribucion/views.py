@@ -9,6 +9,7 @@ from django.views import View
 from django.views.generic import ListView, CreateView, UpdateView, DetailView
 
 from produccion.models import Producto
+from reportes.cierres import anio_cerrado
 from .forms import ClienteForm, PlanillaForm, EntregaForm, AveriaForm
 from .models import Cliente, PrecioPorCategoria, Planilla, Entrega, Averia, Credito
 
@@ -181,6 +182,14 @@ class PlanillaRutaView(RolRequiredMixin, View):
 
         if accion in ('agregar_entrega', 'agregar_averia') and planilla.estado != Planilla.Estado.ABIERTA:
             messages.error(request, 'Esta planilla ya no está abierta; no se pueden agregar entregas ni averías.')
+            return redirect('distribucion:ruta_planilla', pk=pk)
+
+        if accion in ('agregar_entrega', 'agregar_averia') and anio_cerrado(planilla.fecha.year):
+            messages.error(
+                request,
+                f'El año {planilla.fecha.year} ya está cerrado; no se pueden agregar '
+                f'entregas ni averías a esta planilla.',
+            )
             return redirect('distribucion:ruta_planilla', pk=pk)
 
         if accion == 'agregar_entrega':
