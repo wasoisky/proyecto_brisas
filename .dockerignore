@@ -13,3 +13,5 @@ staticfiles/
 .vscode/
 .idea/
 docs/
+
+datos_reales/

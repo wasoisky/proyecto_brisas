@@ -44,3 +44,6 @@ CLAUDE.md
 */MODULO_*.md
 docs/
 .superpowers/
+
+# Datos reales del cliente (clientes, claves): nunca al repo ni a la imagen
+datos_reales/

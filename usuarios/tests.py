@@ -1,4 +1,6 @@
+import json
 import tempfile
+from io import StringIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -365,3 +367,94 @@ class UsuarioUpdateViewTests(UsuarioTestMixin, TestCase):
         response = self.client.get(reverse('usuarios:editar', args=[otro.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'cesar')
+
+
+class CargarDatosRealesTests(TestCase):
+    DATOS = {
+        'categorias': [{'nombre': 'Bolsas', 'descripcion': 'Bolsas de 7 L'}],
+        'unidades': [{'nombre': 'unidad'}, {'nombre': 'litro'}],
+        'insumos': [{'nombre': 'Bolsa 7 litros', 'categoria': 'Bolsas', 'unidad': 'unidad',
+                     'stock_actual': 1000, 'stock_minimo': 500}],
+        'productos': [{'nombre': 'Bolsa 7 litros', 'presentacion': 'BIN', 'contenido_cantidad': 7,
+                       'contenido_unidad': 'litro', 'unidades_por_empaque': 1, 'unidad_medida': 'unidad'},
+                      {'nombre': 'Refresco paca x 30', 'presentacion': 'PAC', 'contenido_cantidad': None,
+                       'contenido_unidad': None, 'unidades_por_empaque': 30, 'unidad_medida': 'unidad'}],
+        'precios': [{'producto': 'Bolsa 7 litros', 'categoria': 'REG', 'precio': 1900},
+                    {'producto': 'Bolsa 7 litros', 'categoria': 'MAY', 'precio': 1600}],
+        'recetas': [{'producto': 'Bolsa 7 litros', 'insumo': 'Bolsa 7 litros', 'cantidad_por_unidad': 1}],
+        'clientes': [{'nombre': 'Colegio Esmeralda', 'telefono': 3229108954, 'direccion': 'I.E.D La Esmeralda',
+                      'categoria': 'MAY', 'autoriza_datos': False}],
+        'usuarios': [{'username': 'wcervera', 'first_name': 'Wilson', 'last_name': 'Cervera',
+                      'rol': 'ADMIN', 'password': 'Clave-Segura-1'}],
+        'activos': [{'tipo': 'BOT', 'fecha': '2026-09-18', 'momento': 'INI',
+                     'lleno': 3, 'vacio': 8, 'clientes': 3}],
+    }
+
+    def cargar(self, datos=None, **opciones):
+        with tempfile.TemporaryDirectory() as tmp:
+            ruta = Path(tmp) / 'datos.json'
+            ruta.write_text(json.dumps(datos or self.DATOS), encoding='utf-8')
+            call_command('cargar_datos_reales', archivo=str(ruta), stdout=StringIO(), **opciones)
+
+    def test_carga_todas_las_secciones(self):
+        from activos.models import MovimientoActivo
+        from distribucion.models import Cliente, PrecioPorCategoria
+        from produccion.models import Insumo, Producto, RecetaProducto
+        self.cargar()
+        self.assertEqual(Insumo.objects.get(nombre='Bolsa 7 litros').stock_actual, 1000)
+        paca = Producto.objects.get(nombre='Refresco paca x 30')
+        self.assertIsNone(paca.contenido_cantidad)
+        self.assertEqual(paca.unidades_por_empaque, 30)
+        self.assertEqual(PrecioPorCategoria.objects.count(), 2)
+        self.assertEqual(RecetaProducto.objects.count(), 1)
+        cliente = Cliente.objects.get(nombre='Colegio Esmeralda')
+        self.assertEqual(cliente.telefono, '3229108954')
+        self.assertFalse(cliente.autoriza_datos)
+        usuario = Usuario.objects.get(username='wcervera')
+        self.assertEqual(usuario.rol, 'ADMIN')
+        self.assertTrue(usuario.check_password('Clave-Segura-1'))
+        mov = MovimientoActivo.objects.get()
+        self.assertEqual((mov.cantidad_en_planta_lleno, mov.registrado_por), (3, usuario))
+
+    def test_es_idempotente_y_no_pisa_stock_ni_clave(self):
+        from produccion.models import Insumo, Producto
+        self.cargar()
+        Insumo.objects.filter(nombre='Bolsa 7 litros').update(stock_actual=42)
+        usuario = Usuario.objects.get(username='wcervera')
+        usuario.set_password('otra-clave-nueva')
+        usuario.save()
+        self.cargar()
+        self.assertEqual(Producto.objects.count(), 2)
+        self.assertEqual(Insumo.objects.get(nombre='Bolsa 7 litros').stock_actual, 42)
+        self.assertTrue(Usuario.objects.get(username='wcervera').check_password('otra-clave-nueva'))
+
+    def test_dry_run_no_guarda_nada(self):
+        from produccion.models import Producto
+        self.cargar(dry_run=True)
+        self.assertEqual(Producto.objects.count(), 0)
+        self.assertFalse(Usuario.objects.filter(username='wcervera').exists())
+
+    def test_referencia_inexistente_falla_y_revierte_todo(self):
+        from produccion.models import CategoriaInsumo
+        datos = json.loads(json.dumps(self.DATOS))
+        datos['precios'][0]['producto'] = 'Producto que no existe'
+        with self.assertRaises(CommandError):
+            self.cargar(datos)
+        self.assertFalse(CategoriaInsumo.objects.filter(nombre='Bolsas').exists())
+
+    def test_reemplazar_demo_exige_confirmar(self):
+        with self.assertRaises(CommandError):
+            self.cargar(reemplazar_demo=True)
+
+    def test_reemplazar_demo_borra_demo_pero_conserva_superusuario(self):
+        from produccion.models import Producto, UnidadMedida
+        Usuario.objects.create_superuser('root', password='x')
+        Usuario.objects.create_user('maximino', password='brisas2024', rol='ADMIN')
+        Producto.objects.create(
+            nombre='Producto demo', presentacion='BOT',
+            unidad_medida=UnidadMedida.objects.create(nombre='demo-u'))
+        self.cargar(reemplazar_demo=True, confirmar=True)
+        self.assertFalse(Usuario.objects.filter(username='maximino').exists())
+        self.assertTrue(Usuario.objects.filter(username='root').exists())
+        self.assertFalse(Producto.objects.filter(nombre='Producto demo').exists())
+        self.assertTrue(Usuario.objects.filter(username='wcervera').exists())
