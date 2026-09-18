@@ -47,6 +47,11 @@ class ProductoListView(RolRequiredMixin, ListView):
         ctx['presentaciones'] = Producto.Presentacion.choices
         return ctx
 
+    def get_template_names(self):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return ['produccion/_producto_tabla.html']
+        return [self.template_name]
+
 
 class ProductoCreateView(RolRequiredMixin, CreateView):
     roles_permitidos = ADMIN_PROD
@@ -117,6 +122,11 @@ class InsumoListView(RolRequiredMixin, ListView):
             activo=True, stock_actual__lte=F('stock_minimo')
         ).count()
         return ctx
+
+    def get_template_names(self):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return ['produccion/_insumo_tabla.html']
+        return [self.template_name]
 
 
 class InsumoCreateView(RolRequiredMixin, CreateView):

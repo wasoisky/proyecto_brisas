@@ -1,0 +1,57 @@
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Nombre</th>
+          <th>Presentación</th>
+          <th>Unidad</th>
+          <th class="text-center">Estado</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in productos %}
+        <tr>
+          <td>{{ p.nombre }}</td>
+          <td>{{ p.get_presentacion_display }}</td>
+          <td>{{ p.unidad_medida }}</td>
+          <td class="text-center">
+            {% if p.activo %}
+              <span class="badge bg-success">Activo</span>
+            {% else %}
+              <span class="badge bg-secondary">Inactivo</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{% url 'produccion:receta_update' p.pk %}"
+               class="btn btn-outline-secondary btn-sm"
+               title="Editar receta de insumos" aria-label="Editar receta de insumos" data-bs-toggle="tooltip">
+              <i class="bi bi-journal-text"></i>
+            </a>
+            <a href="{% url 'produccion:producto_update' p.pk %}" class="btn btn-outline-primary btn-sm"
+               title="Editar producto" aria-label="Editar producto" data-bs-toggle="tooltip">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="post" action="{% url 'produccion:producto_toggle' p.pk %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm {% if p.activo %}btn-outline-warning{% else %}btn-outline-success{% endif %}"
+                      title="{% if p.activo %}Desactivar{% else %}Activar{% endif %}"
+                      aria-label="{% if p.activo %}Desactivar{% else %}Activar{% endif %}"
+                      data-bs-toggle="tooltip">
+                <i class="bi {% if p.activo %}bi-toggle-on{% else %}bi-toggle-off{% endif %}"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" class="text-center text-muted py-4">No hay productos registrados.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% include "includes/pagination.html" %}

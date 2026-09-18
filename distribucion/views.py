@@ -32,6 +32,11 @@ class ClienteListView(RolRequiredMixin, ListView):
                 qs = qs.filter(activo=activo == '1')
         return qs
 
+    def get_template_names(self):
+        if self.request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return ['distribucion/_cliente_tabla.html']
+        return [self.template_name]
+
 
 class ClienteCreateView(RolRequiredMixin, CreateView):
     roles_permitidos = SOLO_ADMIN
