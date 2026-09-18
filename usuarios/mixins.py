@@ -4,7 +4,7 @@ from django.shortcuts import redirect
 
 # URL de inicio según rol — destino cuando se bloquea acceso
 INICIO_POR_ROL = {
-    'ADMIN': '/produccion/productos/',
+    'ADMIN': '/reportes/',
     'PROD':  '/produccion/registro/',
     'DIST':  '/distribucion/ruta/',
 }

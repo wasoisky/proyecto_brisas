@@ -30,7 +30,8 @@
           <td class="small text-muted">{{ b.tamano|filesizeformat }}</td>
           <td class="small text-muted">{{ b.fecha|date:"d/m/Y H:i:s" }}</td>
           <td class="text-end">
-            <a href="{% url 'usuarios:backups_descargar' b.nombre %}" class="btn btn-outline-primary btn-sm" title="Descargar">
+            <a href="{% url 'usuarios:backups_descargar' b.nombre %}" class="btn btn-outline-primary btn-sm" title="Descargar"
+               aria-label="Descargar" data-bs-toggle="tooltip">
               <i class="bi bi-file-earmark-arrow-down"></i>
             </a>
           </td>

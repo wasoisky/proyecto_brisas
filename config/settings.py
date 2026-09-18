@@ -193,5 +193,5 @@ REST_FRAMEWORK = {
 }
 
 LOGIN_URL = '/accounts/login/'
-LOGIN_REDIRECT_URL = '/produccion/productos/'
+LOGIN_REDIRECT_URL = '/reportes/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'

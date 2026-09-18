@@ -4,6 +4,12 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
   <h4 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Descuadres</h4>
+  <form method="post" action="{% url 'reportes:descuadre_detectar' %}">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-outline-danger btn-sm">
+      <i class="bi bi-search me-1"></i>Detectar descuadres (mes en curso)
+    </button>
+  </form>
 </div>
 
 <div class="row g-3">
@@ -86,7 +92,7 @@
                 {% elif d.severidad == 'MOD' %}<span class="badge bg-warning text-dark">Moderado</span>
                 {% else %}<span class="badge bg-secondary">Leve</span>{% endif %}
               </td>
-              <td class="text-end">{{ d.diferencia }}</td>
+              <td class="text-end">{{ d.diferencia|floatformat:0 }}</td>
               <td class="small">
                 {% if d.es_automatico %}<span class="badge bg-info text-dark me-1">Automático</span>{% endif %}
                 {{ d.descripcion|truncatechars:60 }}
@@ -99,7 +105,8 @@
                 {% if not d.resuelto %}
                 <form method="post" action="{% url 'reportes:descuadre_resolver' d.pk %}">
                   {% csrf_token %}
-                  <button type="submit" class="btn btn-outline-success btn-sm" title="Marcar resuelto">
+                  <button type="submit" class="btn btn-outline-success btn-sm" title="Marcar resuelto"
+                          aria-label="Marcar resuelto" data-bs-toggle="tooltip">
                     <i class="bi bi-check-lg"></i>
                   </button>
                 </form>

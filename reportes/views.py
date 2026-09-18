@@ -295,8 +295,8 @@ class CreditoPagarView(RolRequiredMixin, View):
         if monto_pago > float(credito.saldo_pendiente):
             messages.error(
                 request,
-                f'El monto ingresado (${monto_pago}) supera el saldo pendiente '
-                f'(${credito.saldo_pendiente}).',
+                f'El monto ingresado (${monto_pago:.0f}) supera el saldo pendiente '
+                f'(${credito.saldo_pendiente:.0f}).',
             )
             return redirect('reportes:creditos')
 
@@ -312,7 +312,7 @@ class CreditoPagarView(RolRequiredMixin, View):
         else:
             messages.success(
                 request,
-                f'Abono de ${monto_pago} registrado. Saldo restante: ${credito.saldo_pendiente}.',
+                f'Abono de ${monto_pago:.0f} registrado. Saldo restante: ${credito.saldo_pendiente:.0f}.',
             )
         credito.save(update_fields=['saldo_pendiente', 'pagado', 'fecha_pago'])
         return redirect('reportes:creditos')
@@ -399,8 +399,8 @@ class ExportarVentasPDFView(RolRequiredMixin, View):
                 Paragraph(e.producto.nombre, cell_style),
                 str(e.cantidad),
                 str(e.devolucion),
-                f'${e.precio_unitario:,.0f}',
-                f'${e.subtotal:,.0f}',
+                f'${e.precio_unitario:.0f}',
+                f'${e.subtotal:.0f}',
                 e.get_modalidad_pago_display(),
             ])
             key = e.producto.nombre
@@ -439,8 +439,8 @@ class ExportarVentasPDFView(RolRequiredMixin, View):
         if totales_producto:
             resumen_data = [['Producto', 'Total vendido']]
             for nombre, total in sorted(totales_producto.items(), key=lambda x: -x[1]):
-                resumen_data.append([nombre, f'${total:,.0f}'])
-            resumen_data.append(['GRAN TOTAL', f'${gran_total:,.0f}'])
+                resumen_data.append([nombre, f'${total:.0f}'])
+            resumen_data.append(['GRAN TOTAL', f'${gran_total:.0f}'])
 
             resumen = Table(resumen_data, colWidths=[8*cm, 3.5*cm])
             resumen.setStyle(TableStyle([
@@ -685,10 +685,10 @@ class ExportarReporteAnualPDFView(RolRequiredMixin, View):
 
         resumen_data = [
             ['Producción total', str(datos['total_produccion'])],
-            ['Ventas totales', f"${datos['total_ventas']:,.0f}"],
-            ['Créditos generados', f"${datos['creditos_generados']:,.0f}"],
-            ['Créditos pagados', f"${datos['creditos_pagados']:,.0f}"],
-            ['Créditos pendientes', f"${datos['creditos_pendientes']:,.0f}"],
+            ['Ventas totales', f"${datos['total_ventas']:.0f}"],
+            ['Créditos generados', f"${datos['creditos_generados']:.0f}"],
+            ['Créditos pagados', f"${datos['creditos_pagados']:.0f}"],
+            ['Créditos pendientes', f"${datos['creditos_pendientes']:.0f}"],
             ['Descuadres leves', str(datos['descuadres_por_severidad']['LEV'])],
             ['Descuadres moderados', str(datos['descuadres_por_severidad']['MOD'])],
             ['Descuadres críticos', str(datos['descuadres_por_severidad']['CRI'])],
@@ -707,7 +707,7 @@ class ExportarReporteAnualPDFView(RolRequiredMixin, View):
 
         mensual_data = [['Mes', 'Producción', 'Ventas']]
         for m in datos['meses']:
-            mensual_data.append([m['mes'], str(m['produccion']), f"${m['ventas']:,.0f}"])
+            mensual_data.append([m['mes'], str(m['produccion']), f"${m['ventas']:.0f}"])
         mensual = Table(mensual_data, colWidths=[5 * cm, 4 * cm, 4 * cm], repeatRows=1)
         mensual.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), NAVY),

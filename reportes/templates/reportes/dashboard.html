@@ -84,6 +84,12 @@
           <span><i class="bi bi-clipboard-check me-2 text-primary"></i>Planillas por validar</span>
           {% if planillas_pendientes %}<span class="badge bg-primary">{{ planillas_pendientes }}</span>{% endif %}
         </a>
+        <form method="post" action="{% url 'reportes:descuadre_detectar' %}" class="list-group-item p-0">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-link text-decoration-none text-reset w-100 text-start d-flex justify-content-between align-items-center py-2 px-3">
+            <span><i class="bi bi-search me-2 text-danger"></i>Detectar descuadres (mes en curso)</span>
+          </button>
+        </form>
       </div>
     </div>
   </div>
@@ -99,12 +105,6 @@
            class="list-group-item list-group-item-action">
           <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Ventas del mes — PDF
         </a>
-        <form method="post" action="{% url 'reportes:descuadre_detectar' %}" class="list-group-item">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-sm btn-outline-danger w-100 text-start">
-            <i class="bi bi-search me-2"></i>Detectar descuadres (mes en curso)
-          </button>
-        </form>
       </div>
     </div>
   </div>

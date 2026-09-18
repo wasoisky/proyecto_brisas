@@ -84,17 +84,21 @@
             {{ u.last_login|date:"d/m/Y H:i"|default:"Nunca" }}
           </td>
           <td class="text-end">
-            <a href="{% url 'usuarios:editar' u.pk %}" class="btn btn-outline-primary btn-sm" title="Editar">
+            <a href="{% url 'usuarios:editar' u.pk %}" class="btn btn-outline-primary btn-sm" title="Editar"
+               aria-label="Editar" data-bs-toggle="tooltip">
               <i class="bi bi-pencil"></i>
             </a>
-            <a href="{% url 'usuarios:password' u.pk %}" class="btn btn-outline-warning btn-sm" title="Cambiar contraseña">
+            <a href="{% url 'usuarios:password' u.pk %}" class="btn btn-outline-warning btn-sm" title="Cambiar contraseña"
+               aria-label="Cambiar contraseña" data-bs-toggle="tooltip">
               <i class="bi bi-key"></i>
             </a>
             {% if u.pk != request.user.pk %}
             <form method="post" action="{% url 'usuarios:toggle' u.pk %}" class="d-inline">
               {% csrf_token %}
               <button type="submit" class="btn btn-sm {% if u.is_active %}btn-outline-secondary{% else %}btn-outline-success{% endif %}"
-                      title="{% if u.is_active %}Desactivar{% else %}Activar{% endif %}">
+                      title="{% if u.is_active %}Desactivar{% else %}Activar{% endif %}"
+                      aria-label="{% if u.is_active %}Desactivar{% else %}Activar{% endif %}"
+                      data-bs-toggle="tooltip">
                 <i class="bi {% if u.is_active %}bi-toggle-on{% else %}bi-toggle-off{% endif %}"></i>
               </button>
             </form>

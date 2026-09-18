@@ -539,6 +539,22 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 });
+
+/* ── Tooltips de Bootstrap para botones de solo ícono (title + data-bs-toggle)
+   Se activan con hover Y con foco de teclado, no solo con el mouse.
+   window.initTooltips() se vuelve a llamar tras cada reemplazo de contenido
+   por fetch (ver static/js/filtro-vivo.js) para que los botones nuevos
+   también queden con su tooltip. ── */
+window.initTooltips = function (root) {
+  (root || document).querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+    if (!bootstrap.Tooltip.getInstance(el)) {
+      new bootstrap.Tooltip(el, { trigger: 'hover focus' });
+    }
+  });
+};
+document.addEventListener('DOMContentLoaded', function () {
+  window.initTooltips();
+});
 </script>
 {% block extra_js %}{% endblock %}
 </body>

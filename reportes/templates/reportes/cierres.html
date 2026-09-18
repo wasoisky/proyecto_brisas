@@ -4,10 +4,21 @@
 {% block content %}
 <h4 class="mb-4"><i class="bi bi-lock me-2"></i>Cierres anuales</h4>
 
+<div class="alert alert-warning d-flex gap-2" role="alert">
+  <i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+  <div>
+    <strong>¿Qué hace cerrar un año?</strong>
+    A partir de ese momento, nadie podrá crear ni editar registros de producción, compras
+    de insumos, regalías, movimientos ni bajas de activos, planillas, entregas o averías
+    con fecha dentro de ese año — en ningún módulo. Es reversible: puedes reabrirlo cuando
+    quieras desde el historial de abajo.
+  </div>
+</div>
+
 <div class="card mb-4">
   <div class="card-header fw-semibold">Cerrar un año</div>
   <div class="card-body">
-    <form method="post" action="{% url 'reportes:cierre_crear' %}" class="row g-2 align-items-end">
+    <form method="post" action="{% url 'reportes:cierre_crear' %}" id="form-cerrar-anio" class="row g-2 align-items-end">
       {% csrf_token %}
       <div class="col-auto">
         <label class="form-label small mb-1">Año</label>
@@ -76,4 +87,19 @@
     </table>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('form-cerrar-anio').addEventListener('submit', function (e) {
+  const anio = this.querySelector('input[name="anio"]').value;
+  const confirmado = confirm(
+    'Vas a cerrar el año ' + anio + '.\n\n' +
+    'Nadie podrá crear ni editar registros de producción, compras, regalías, activos, ' +
+    'planillas, entregas ni averías con fecha en ' + anio + '.\n\n' +
+    'Podrás reabrirlo después si lo necesitas. ¿Confirmas el cierre?'
+  );
+  if (!confirmado) e.preventDefault();
+});
+</script>
 {% endblock %}

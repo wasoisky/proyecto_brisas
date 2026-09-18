@@ -28,13 +28,13 @@ class LoginConRolView(auth_views.LoginView):
         if url := self.get_redirect_url():
             return url
         rol = getattr(self.request.user, 'rol', None)
-        return INICIO_POR_ROL.get(rol, '/produccion/productos/')
+        return INICIO_POR_ROL.get(rol, '/reportes/')
 
 
 def home_redirect(request):
     if request.user.is_authenticated:
         rol = getattr(request.user, 'rol', None)
-        return redirect(INICIO_POR_ROL.get(rol, '/produccion/productos/'))
+        return redirect(INICIO_POR_ROL.get(rol, '/reportes/'))
     return redirect('login')
 
 

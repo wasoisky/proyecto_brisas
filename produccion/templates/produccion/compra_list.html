@@ -68,8 +68,8 @@
           <td>{{ c.insumo.nombre }}</td>
           <td class="text-end fw-semibold">{{ c.cantidad }}</td>
           <td class="text-muted small">{{ c.insumo.unidad_medida }}</td>
-          <td class="text-end">${{ c.precio_unitario }}</td>
-          <td class="text-end fw-semibold">${{ c.total }}</td>
+          <td class="text-end">${{ c.precio_unitario|floatformat:0 }}</td>
+          <td class="text-end fw-semibold">${{ c.total|floatformat:0 }}</td>
           <td>{{ c.proveedor|default:"—" }}</td>
           <td><code>{{ c.factura|default:"—" }}</code></td>
           <td>{{ c.registrado_por.get_full_name|default:c.registrado_por.username }}</td>
@@ -84,7 +84,7 @@
       <tfoot class="table-light fw-semibold">
         <tr>
           <td colspan="5" class="text-end">Total filtrado:</td>
-          <td class="text-end">${{ total_general }}</td>
+          <td class="text-end">${{ total_general|floatformat:0 }}</td>
           <td colspan="3"></td>
         </tr>
       </tfoot>

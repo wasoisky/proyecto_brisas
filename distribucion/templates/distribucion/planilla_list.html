@@ -49,7 +49,7 @@
           <td>{{ p.distribuidor.get_full_name|default:p.distribuidor.username }}</td>
           <td class="text-center">
             {% if p.estado == 'ABR' %}<span class="badge bg-primary">Abierta</span>
-            {% elif p.estado == 'PEN' %}<span class="badge bg-warning text-dark">Pendiente validación</span>
+            {% elif p.estado == 'PEN' %}<span class="badge bg-warning text-dark">Pendiente de validación</span>
             {% else %}<span class="badge bg-success">Validada</span>{% endif %}
           </td>
           <td class="text-end">{{ p.entregas.count }}</td>
