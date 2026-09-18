@@ -5,7 +5,7 @@ from django.conf import settings
 class CategoriaInsumo(models.Model):
     """Catálogo editable de categorías de insumo (admin, sin tocar código)."""
     nombre = models.CharField(max_length=60, unique=True)
-    descripcion = models.CharField(max_length=200, blank=True)
+    descripcion = models.CharField(max_length=200, blank=True, verbose_name='Descripción')
     activo = models.BooleanField(default=True)
     orden = models.PositiveSmallIntegerField(default=0)
 
@@ -21,7 +21,7 @@ class CategoriaInsumo(models.Model):
 class UnidadMedida(models.Model):
     """Catálogo editable de unidades de medida (admin, sin tocar código)."""
     nombre = models.CharField(max_length=40, unique=True)
-    descripcion = models.CharField(max_length=200, blank=True)
+    descripcion = models.CharField(max_length=200, blank=True, verbose_name='Descripción')
     activo = models.BooleanField(default=True)
     orden = models.PositiveSmallIntegerField(default=0)
 
@@ -50,15 +50,18 @@ class Producto(models.Model):
     nombre = models.CharField(max_length=60, help_text='Ej: Agua sin tapa, Agua con tapa, Hielo')
     presentacion = models.CharField(
         max_length=3, choices=Presentacion.choices,
+        verbose_name='Presentación',
         help_text='Forma de empaque del producto terminado',
     )
     contenido_cantidad = models.DecimalField(
         max_digits=8, decimal_places=2, null=True, blank=True,
+        verbose_name='Cantidad de contenido',
         help_text='Ej: 300 (junto con la unidad de contenido, ej. ml)',
     )
     contenido_unidad = models.ForeignKey(
         UnidadMedida, on_delete=models.PROTECT, null=True, blank=True,
         related_name='productos_contenido',
+        verbose_name='Unidad de contenido',
         help_text='Unidad del contenido individual (ej. ml, L, kg)',
     )
     unidades_por_empaque = models.PositiveIntegerField(
@@ -68,6 +71,7 @@ class Producto(models.Model):
     unidad_medida = models.ForeignKey(
         UnidadMedida, on_delete=models.PROTECT, related_name='productos_unidad',
         default=_default_unidad_medida_producto,
+        verbose_name='Unidad de medida',
         help_text='Unidad en que se cuenta el producto terminado (normalmente "unidad")',
     )
     activo = models.BooleanField(default=True)
@@ -85,15 +89,18 @@ class Insumo(models.Model):
     nombre = models.CharField(max_length=60, help_text='Ej: Tapas plásticas, Cinta selladora')
     categoria = models.ForeignKey(
         CategoriaInsumo, on_delete=models.PROTECT, related_name='insumos',
+        verbose_name='Categoría',
         help_text='Ej: Tapas y sellado — tapas plásticas, anillos de sellado, cinta selladora',
     )
     unidad_medida = models.ForeignKey(
         UnidadMedida, on_delete=models.PROTECT, related_name='insumos',
+        verbose_name='Unidad de medida',
         help_text='Ej: rollo, kilogramo, millar',
     )
     stock_actual = models.DecimalField(max_digits=10, decimal_places=2, default=0,
                                        help_text='Ej: 8.20')
     stock_minimo = models.DecimalField(max_digits=10, decimal_places=2, default=0,
+                                       verbose_name='Stock mínimo',
                                        help_text='Cantidad mínima antes de generar alerta. Ej: 3')
     activo = models.BooleanField(default=True)
 
@@ -142,7 +149,7 @@ class Produccion(models.Model):
 class ConsumoInsumo(models.Model):
     """Insumos consumidos en un registro de producción."""
     produccion = models.ForeignKey(Produccion, on_delete=models.CASCADE,
-                                   related_name='consumos')
+                                   related_name='consumos', verbose_name='Producción')
     insumo = models.ForeignKey(Insumo, on_delete=models.PROTECT,
                                related_name='consumos')
     cantidad = models.DecimalField(max_digits=10, decimal_places=2)
@@ -225,6 +232,7 @@ class Regalia(models.Model):
     produccion = models.ForeignKey(
         Produccion, on_delete=models.PROTECT, related_name='regalias',
         null=True, blank=True,
+        verbose_name='Producción',
         help_text='Lote de origen, si se conoce (trazabilidad BPM — Res. 2674/2013)',
     )
     cantidad = models.PositiveIntegerField()

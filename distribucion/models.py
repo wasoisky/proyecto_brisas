@@ -9,9 +9,10 @@ class Cliente(models.Model):
         MAYORISTA = 'MAY', 'Mayorista'
 
     nombre = models.CharField(max_length=120)
-    telefono = models.CharField(max_length=20, blank=True)
-    direccion = models.CharField(max_length=200, blank=True)
-    categoria = models.CharField(max_length=3, choices=Categoria.choices, default=Categoria.REGULAR)
+    telefono = models.CharField(max_length=20, blank=True, verbose_name='Teléfono')
+    direccion = models.CharField(max_length=200, blank=True, verbose_name='Dirección')
+    categoria = models.CharField(max_length=3, choices=Categoria.choices, default=Categoria.REGULAR,
+                                 verbose_name='Categoría')
     # Ley 1581/2012 — autorización tratamiento de datos personales
     autoriza_datos = models.BooleanField(
         default=False,
@@ -31,7 +32,7 @@ class Cliente(models.Model):
 
 class PrecioPorCategoria(models.Model):
     """Precio por combinación categoría + producto. No por cliente individual."""
-    categoria = models.CharField(max_length=3, choices=Cliente.Categoria.choices)
+    categoria = models.CharField(max_length=3, choices=Cliente.Categoria.choices, verbose_name='Categoría')
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='precios_categoria')
     precio = models.DecimalField(max_digits=10, decimal_places=2)
 
@@ -114,7 +115,7 @@ class Averia(models.Model):
     planilla = models.ForeignKey(Planilla, on_delete=models.CASCADE, related_name='averias')
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='averias')
     cantidad = models.PositiveIntegerField()
-    descripcion = models.TextField(blank=True)
+    descripcion = models.TextField(blank=True, verbose_name='Descripción')
 
     class Meta:
         verbose_name = 'Avería'
@@ -136,8 +137,8 @@ class Credito(models.Model):
     monto = models.DecimalField(max_digits=10, decimal_places=2)
     saldo_pendiente = models.DecimalField(max_digits=10, decimal_places=2)
     pagado = models.BooleanField(default=False)
-    fecha_creacion = models.DateField(auto_now_add=True)
-    fecha_pago = models.DateField(null=True, blank=True)
+    fecha_creacion = models.DateField(auto_now_add=True, verbose_name='Fecha de creación')
+    fecha_pago = models.DateField(null=True, blank=True, verbose_name='Fecha de pago')
 
     class Meta:
         verbose_name = 'Crédito'

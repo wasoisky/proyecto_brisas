@@ -82,7 +82,7 @@ class BajaActivo(models.Model):
     )
     cantidad = models.PositiveIntegerField()
     motivo = models.CharField(max_length=3, choices=Motivo.choices, default=Motivo.ROTURA)
-    descripcion = models.TextField(blank=True)
+    descripcion = models.TextField(blank=True, verbose_name='Descripción')
     registrado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,

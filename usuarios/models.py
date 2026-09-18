@@ -20,7 +20,7 @@ class Usuario(AbstractUser):
         default=Rol.ADMINISTRADOR,
         verbose_name='Rol del usuario'
     )
-    telefono = models.CharField(max_length=20, blank=True, null=True)
+    telefono = models.CharField(max_length=20, blank=True, null=True, verbose_name='Teléfono')
 
     def __str__(self):
         return f'{self.username} ({self.get_rol_display()})'

@@ -17,7 +17,7 @@ class Descuadre(models.Model):
     fecha = models.DateField()
     tipo = models.CharField(max_length=2, choices=TipoDescuadre.choices)
     severidad = models.CharField(max_length=3, choices=Severidad.choices, default=Severidad.LEVE)
-    descripcion = models.TextField()
+    descripcion = models.TextField(verbose_name='Descripción')
     diferencia = models.DecimalField(max_digits=12, decimal_places=2,
                                      help_text='Valor numérico de la diferencia detectada')
     resuelto = models.BooleanField(default=False)
@@ -43,21 +43,21 @@ class Descuadre(models.Model):
 
 
 class CierreAnual(models.Model):
-    anio = models.PositiveIntegerField(unique=True)
+    anio = models.PositiveIntegerField(unique=True, verbose_name='Año')
     cerrado = models.BooleanField(default=True)
     cerrado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='cierres_realizados',
     )
-    fecha_cierre = models.DateTimeField(default=timezone.now)
+    fecha_cierre = models.DateTimeField(default=timezone.now, verbose_name='Fecha de cierre')
     reabierto_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name='cierres_reabiertos',
     )
-    fecha_reapertura = models.DateTimeField(null=True, blank=True)
+    fecha_reapertura = models.DateTimeField(null=True, blank=True, verbose_name='Fecha de reapertura')
 
     class Meta:
         verbose_name = 'Cierre Anual'
