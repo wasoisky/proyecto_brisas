@@ -1,5 +1,7 @@
 from django import forms
 from django.forms import inlineformset_factory
+
+from config.widgets import FechaInput
 from .models import (
     Producto, Insumo, Produccion, ConsumoInsumo, CompraInsumo, RecetaProducto, Regalia,
     CategoriaInsumo, UnidadMedida,
@@ -92,7 +94,7 @@ class ProduccionForm(forms.ModelForm):
         model = Produccion
         fields = ['fecha', 'lote', 'producto', 'cantidad_producida', 'observaciones']
         widgets = {
-            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha': FechaInput(attrs={'class': 'form-control'}),
             'lote': forms.TextInput(attrs={'class': 'form-control'}),
             'producto': forms.Select(attrs={'class': 'form-select'}),
             'cantidad_producida': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),
@@ -105,7 +107,7 @@ class CompraInsumoForm(forms.ModelForm):
         model = CompraInsumo
         fields = ['fecha', 'insumo', 'cantidad', 'precio_unitario', 'proveedor', 'factura']
         widgets = {
-            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha': FechaInput(attrs={'class': 'form-control'}),
             'insumo': forms.Select(attrs={'class': 'form-select'}),
             'cantidad': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
             'precio_unitario': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
@@ -119,7 +121,7 @@ class RegaliaForm(forms.ModelForm):
         model = Regalia
         fields = ['fecha', 'producto', 'produccion', 'cantidad', 'destinatario', 'motivo', 'observaciones']
         widgets = {
-            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha': FechaInput(attrs={'class': 'form-control'}),
             'producto': forms.Select(attrs={'class': 'form-select'}),
             'produccion': forms.Select(attrs={'class': 'form-select'}),
             'cantidad': forms.NumberInput(attrs={'class': 'form-control', 'min': '1'}),

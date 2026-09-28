@@ -1,5 +1,7 @@
 from datetime import date
 from django import forms
+
+from config.widgets import FechaInput
 from .models import BajaActivo, MovimientoActivo
 
 
@@ -13,7 +15,7 @@ class MovimientoActivoForm(forms.ModelForm):
             'observaciones',
         ]
         widgets = {
-            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha': FechaInput(attrs={'class': 'form-control'}),
             'momento': forms.Select(attrs={'class': 'form-select'}),
             'tipo_activo': forms.Select(attrs={'class': 'form-select', 'id': 'id_tipo_activo'}),
             'cantidad_en_planta_lleno': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),

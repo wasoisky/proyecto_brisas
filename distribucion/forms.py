@@ -1,4 +1,6 @@
 from django import forms
+
+from config.widgets import FechaInput
 from .models import Cliente, PrecioPorCategoria, Planilla, Entrega, Averia
 
 
@@ -41,7 +43,7 @@ class PlanillaForm(forms.ModelForm):
         model = Planilla
         fields = ['fecha', 'distribuidor', 'observaciones']
         widgets = {
-            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha': FechaInput(attrs={'class': 'form-control'}),
             'distribuidor': forms.Select(attrs={'class': 'form-select'}),
             'observaciones': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }

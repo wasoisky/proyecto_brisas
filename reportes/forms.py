@@ -1,5 +1,7 @@
 from datetime import date
 from django import forms
+
+from config.widgets import FechaInput
 from .models import Descuadre
 
 
@@ -8,7 +10,7 @@ class DescuadreForm(forms.ModelForm):
         model = Descuadre
         fields = ['fecha', 'tipo', 'severidad', 'descripcion', 'diferencia']
         widgets = {
-            'fecha': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha': FechaInput(attrs={'class': 'form-control'}),
             'tipo': forms.Select(attrs={'class': 'form-select'}),
             'severidad': forms.Select(attrs={'class': 'form-select'}),
             'descripcion': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
@@ -23,11 +25,11 @@ class DescuadreForm(forms.ModelForm):
 class FiltroVentasForm(forms.Form):
     fecha_desde = forms.DateField(
         required=False,
-        widget=forms.DateInput(attrs={'class': 'form-control form-control-sm', 'type': 'date'}),
+        widget=FechaInput(attrs={'class': 'form-control form-control-sm'}),
     )
     fecha_hasta = forms.DateField(
         required=False,
-        widget=forms.DateInput(attrs={'class': 'form-control form-control-sm', 'type': 'date'}),
+        widget=FechaInput(attrs={'class': 'form-control form-control-sm'}),
     )
     distribuidor = forms.ChoiceField(
         required=False,

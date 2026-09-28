@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+from django.contrib import messages
 from dotenv import load_dotenv
 
 load_dotenv()  # Carga las variables de entorno desde el archivo .env
@@ -142,6 +143,9 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
+
+# Bootstrap solo define alert-danger; Django etiqueta messages.error como 'error'
+MESSAGE_TAGS = {messages.ERROR: 'danger'}
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
