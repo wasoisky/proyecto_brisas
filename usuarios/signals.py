@@ -1,12 +1,7 @@
 from django.contrib.auth.signals import user_logged_in, user_logged_out, user_login_failed
 from django.dispatch import receiver
 
-
-def _get_ip(request):
-    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded:
-        return x_forwarded.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR')
+from .ip import obtener_ip_cliente as _get_ip
 
 
 def _user_agent(request):

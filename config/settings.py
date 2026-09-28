@@ -176,10 +176,18 @@ SESSION_COOKIE_SECURE = USE_HTTPS
 CSRF_COOKIE_SECURE = USE_HTTPS
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+# Proxies de confianza delante de gunicorn (proxy global del VPS + nginx del compose).
+# De ellos se deduce la IP real del visitante en X-Forwarded-For (ver usuarios/ip.py).
+# 0 = ignorar la cabecera y usar REMOTE_ADDR.
+TRUSTED_PROXY_COUNT = int(os.environ.get('TRUSTED_PROXY_COUNT', '2'))
+
 # ── Protección fuerza bruta (django-axes) ─────────────────────────────────────
 AXES_FAILURE_LIMIT = 5               # bloquear tras 5 intentos fallidos
 AXES_COOLOFF_TIME = 1                # desbloquear después de 1 hora
-AXES_LOCKOUT_PARAMETERS = ['username', 'ip_address']  # bloquear por usuario + IP
+# Lista dentro de lista = UN solo criterio combinado (usuario+IP). Una lista de cadenas
+# serían criterios independientes (usuario O IP) y cualquiera podría bloquear a todos.
+AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
+AXES_CLIENT_IP_CALLABLE = 'usuarios.ip.obtener_ip_cliente'  # IP real, no la del contenedor
 AXES_RESET_ON_SUCCESS = True         # reiniciar contador al entrar correctamente
 AXES_LOCKOUT_TEMPLATE = 'registration/lockout.html'
 AXES_VERBOSE = False

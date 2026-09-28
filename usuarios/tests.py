@@ -458,3 +458,97 @@ class CargarDatosRealesTests(TestCase):
         self.assertTrue(Usuario.objects.filter(username='root').exists())
         self.assertFalse(Producto.objects.filter(nombre='Producto demo').exists())
         self.assertTrue(Usuario.objects.filter(username='wcervera').exists())
+
+
+@override_settings(TRUSTED_PROXY_COUNT=2)
+class ObtenerIpClienteTests(TestCase):
+    """IP del visitante tras «proxy global -> nginx -> gunicorn» (2 proxies de confianza)."""
+
+    def ip(self, remote_addr='172.18.0.5', **meta):
+        from .ip import obtener_ip_cliente
+        request = RequestFactory().get('/', REMOTE_ADDR=remote_addr, **meta)
+        return obtener_ip_cliente(request)
+
+    def test_sin_cabecera_usa_remote_addr(self):
+        self.assertEqual(self.ip(), '172.18.0.5')
+
+    def test_toma_al_cliente_por_la_derecha_de_la_cadena(self):
+        self.assertEqual(self.ip(HTTP_X_FORWARDED_FOR='203.0.113.7, 10.0.0.2'), '203.0.113.7')
+
+    def test_ignora_entradas_falsas_que_el_cliente_antepone(self):
+        cadena = '6.6.6.6, 203.0.113.7, 10.0.0.2'
+        self.assertEqual(self.ip(HTTP_X_FORWARDED_FOR=cadena), '203.0.113.7')
+
+    def test_cadena_mas_corta_que_los_proxies_esperados_usa_remote_addr(self):
+        self.assertEqual(self.ip(HTTP_X_FORWARDED_FOR='6.6.6.6'), '172.18.0.5')
+
+    def test_valor_que_no_es_ip_usa_remote_addr(self):
+        self.assertEqual(self.ip(HTTP_X_FORWARDED_FOR='no-es-ip, 10.0.0.2'), '172.18.0.5')
+
+    def test_acepta_ipv6(self):
+        cadena = '2001:db8::1, 10.0.0.2'
+        self.assertEqual(self.ip(HTTP_X_FORWARDED_FOR=cadena), '2001:db8::1')
+
+    @override_settings(TRUSTED_PROXY_COUNT=0)
+    def test_sin_proxies_de_confianza_ignora_la_cabecera(self):
+        self.assertEqual(self.ip(HTTP_X_FORWARDED_FOR='6.6.6.6, 7.7.7.7'), '172.18.0.5')
+
+
+@override_settings(TRUSTED_PROXY_COUNT=2)
+class BloqueoAxesTests(UsuarioTestMixin, TestCase):
+    """Bloqueo tras 5 fallos por combinación usuario+IP, usando la IP real del visitante."""
+
+    URL = '/accounts/login/'
+
+    def setUp(self):
+        self.crear_admin('maximino', password='brisas2024')
+
+    def xff(self, ip):
+        # Lo que llega a gunicorn: el proxy global añade al cliente y nginx al proxy global.
+        return {'HTTP_X_FORWARDED_FOR': f'{ip}, 10.0.0.2', 'REMOTE_ADDR': '172.18.0.5'}
+
+    def intentar(self, username, password, ip):
+        return self.client.post(
+            self.URL, {'username': username, 'password': password}, **self.xff(ip))
+
+    def fallar(self, username, ip, veces=5):
+        for _ in range(veces):
+            self.intentar(username, 'incorrecta', ip)
+
+    def test_axes_registra_la_ip_real_y_no_la_del_contenedor(self):
+        from axes.models import AccessAttempt
+        self.intentar('maximino', 'incorrecta', '203.0.113.7')
+        self.assertEqual(AccessAttempt.objects.get().ip_address, '203.0.113.7')
+
+    def test_cinco_fallos_bloquean_ese_usuario_desde_esa_ip(self):
+        self.fallar('maximino', '203.0.113.7')
+        response = self.intentar('maximino', 'brisas2024', '203.0.113.7')
+        self.assertEqual(response.status_code, 429)
+
+    def test_fallos_de_un_usuario_no_bloquean_al_mismo_usuario_desde_otra_ip(self):
+        self.fallar('maximino', '203.0.113.7')
+        response = self.intentar('maximino', 'brisas2024', '198.51.100.9')
+        self.assertEqual(response.status_code, 302)
+
+    def test_fallos_con_un_usuario_inexistente_no_bloquean_a_los_demas_desde_la_misma_ip(self):
+        self.fallar('fantasma', '203.0.113.7', veces=6)
+        response = self.intentar('maximino', 'brisas2024', '203.0.113.7')
+        self.assertEqual(response.status_code, 302)
+
+    def test_ip_de_confianza_falsa_antepuesta_no_evita_el_bloqueo(self):
+        for i in range(5):
+            self.client.post(
+                self.URL, {'username': 'maximino', 'password': 'incorrecta'},
+                HTTP_X_FORWARDED_FOR=f'10.9.9.{i}, 203.0.113.7, 10.0.0.2', REMOTE_ADDR='172.18.0.5')
+        response = self.intentar('maximino', 'brisas2024', '203.0.113.7')
+        self.assertEqual(response.status_code, 429)
+
+
+@override_settings(TRUSTED_PROXY_COUNT=2)
+class RegistroAccesoIpTests(UsuarioTestMixin, TestCase):
+    def test_registro_de_acceso_guarda_la_ip_real_y_no_una_falsa_antepuesta(self):
+        from .models import RegistroAcceso
+        self.client.post(
+            '/accounts/login/', {'username': 'nadie', 'password': 'x'},
+            HTTP_X_FORWARDED_FOR='6.6.6.6, 203.0.113.7, 10.0.0.2', REMOTE_ADDR='172.18.0.5')
+        self.assertEqual(RegistroAcceso.objects.get().ip, '203.0.113.7')
