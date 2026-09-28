@@ -505,3 +505,158 @@ class BloqueoPorCierreAnualTests(TestCase):
         )
         with self.assertRaises(ValidationError):
             regalia.full_clean()
+
+
+class RecetaApiAccesoTests(ProduccionTestMixin, TestCase):
+    """receta_api expone insumos y cantidades de cada producto: exige sesión y
+    rol ADMIN/PROD, y responde JSON (no una redirección HTML) para que el
+    fetch de produccion_form.html pueda distinguir el error."""
+
+    def setUp(self):
+        self.producto = self.crear_producto()
+        self.insumo = self.crear_insumo()
+        RecetaProducto.objects.create(
+            producto=self.producto, insumo=self.insumo, cantidad_por_unidad=Decimal('0.75'),
+        )
+        self.url = reverse('produccion:receta_api', args=[self.producto.pk])
+
+    def test_sin_sesion_responde_401_y_no_filtra_la_receta(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 401)
+        self.assertNotIn('receta', response.json())
+
+    def test_rol_distribucion_responde_403_y_no_filtra_la_receta(self):
+        dist = Usuario.objects.create_user(username='nico', password='x', rol='DIST')
+        self.client.force_login(dist)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn('receta', response.json())
+
+    def test_rol_produccion_puede_leer_la_receta(self):
+        prod = Usuario.objects.create_user(username='wilson', password='x', rol='PROD')
+        self.client.force_login(prod)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['receta']), 1)
+
+    def test_superusuario_puede_leer_la_receta(self):
+        root = Usuario.objects.create_superuser(username='root', password='x')
+        self.client.force_login(root)
+
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+
+
+def _management_form(prefix, filas):
+    data = {
+        f'{prefix}-TOTAL_FORMS': str(len(filas)),
+        f'{prefix}-INITIAL_FORMS': '0',
+        f'{prefix}-MIN_NUM_FORMS': '0',
+        f'{prefix}-MAX_NUM_FORMS': '1000',
+    }
+    for i, fila in enumerate(filas):
+        for campo, valor in fila.items():
+            data[f'{prefix}-{i}-{campo}'] = valor
+    return data
+
+
+class ValidacionCantidadesServidorTests(ProduccionTestMixin, TestCase):
+    """Los min= de los widgets solo protegen en el navegador: un POST
+    manipulado debe rechazarse también en el servidor."""
+
+    def setUp(self):
+        self.admin = self.crear_admin()
+        self.producto = self.crear_producto()
+        self.insumo = self.crear_insumo(stock_actual=Decimal('50'))
+
+    # ── CompraInsumoForm ──
+    def _datos_compra(self, **override):
+        datos = {
+            'fecha': '2026-09-01', 'insumo': self.insumo.pk,
+            'cantidad': '5', 'precio_unitario': '100', 'proveedor': '', 'factura': '',
+        }
+        datos.update(override)
+        return datos
+
+    def test_compra_valida_es_aceptada(self):
+        from .forms import CompraInsumoForm
+        self.assertTrue(CompraInsumoForm(self._datos_compra()).is_valid())
+
+    def test_compra_rechaza_cantidad_negativa_o_cero(self):
+        from .forms import CompraInsumoForm
+        for valor in ('-1', '0'):
+            form = CompraInsumoForm(self._datos_compra(cantidad=valor))
+            self.assertFalse(form.is_valid(), valor)
+            self.assertIn('cantidad', form.errors)
+
+    def test_compra_rechaza_precio_negativo_pero_acepta_cero(self):
+        from .forms import CompraInsumoForm
+        form = CompraInsumoForm(self._datos_compra(precio_unitario='-1'))
+        self.assertFalse(form.is_valid())
+        self.assertIn('precio_unitario', form.errors)
+        self.assertTrue(CompraInsumoForm(self._datos_compra(precio_unitario='0')).is_valid())
+
+    def test_post_compra_con_cantidad_negativa_no_resta_stock(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            reverse('produccion:compra_create'), self._datos_compra(cantidad='-10'),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.insumo.refresh_from_db()
+        self.assertEqual(self.insumo.stock_actual, Decimal('50'))
+        self.assertEqual(CompraInsumo.objects.count(), 0)
+
+    # ── ProduccionForm ──
+    def test_produccion_rechaza_cantidad_producida_cero(self):
+        from .forms import ProduccionForm
+        form = ProduccionForm({
+            'fecha': '2026-09-01', 'lote': 'L-1', 'producto': self.producto.pk,
+            'cantidad_producida': '0', 'observaciones': '',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('cantidad_producida', form.errors)
+
+    def test_produccion_acepta_cantidad_producida_uno(self):
+        from .forms import ProduccionForm
+        form = ProduccionForm({
+            'fecha': '2026-09-01', 'lote': 'L-1', 'producto': self.producto.pk,
+            'cantidad_producida': '1', 'observaciones': '',
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+    # ── RegaliaForm ──
+    def test_regalia_rechaza_cantidad_cero(self):
+        from .forms import RegaliaForm
+        form = RegaliaForm({
+            'fecha': '2026-09-01', 'producto': self.producto.pk, 'cantidad': '0',
+            'motivo': 'OTR', 'destinatario': '', 'observaciones': '',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('cantidad', form.errors)
+
+    # ── Formsets ──
+    def test_consumo_rechaza_cantidad_negativa_o_cero(self):
+        from .forms import ConsumoInsumoFormSet
+        for valor in ('-3', '0'):
+            formset = ConsumoInsumoFormSet(
+                _management_form('consumos', [{'insumo': self.insumo.pk, 'cantidad': valor}]),
+                prefix='consumos',
+            )
+            self.assertFalse(formset.is_valid(), valor)
+            self.assertIn('cantidad', formset.forms[0].errors)
+
+    def test_receta_rechaza_cantidad_por_unidad_negativa_o_cero(self):
+        from .forms import RecetaProductoFormSet
+        for valor in ('-1', '0'):
+            formset = RecetaProductoFormSet(
+                _management_form('receta', [{'insumo': self.insumo.pk, 'cantidad_por_unidad': valor}]),
+                instance=self.producto, prefix='receta',
+            )
+            self.assertFalse(formset.is_valid(), valor)
+            self.assertIn('cantidad_por_unidad', formset.forms[0].errors)

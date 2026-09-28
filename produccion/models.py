@@ -1,5 +1,8 @@
-from django.db import models
+from decimal import Decimal
+
 from django.conf import settings
+from django.core.validators import MinValueValidator
+from django.db import models
 
 
 class CategoriaInsumo(models.Model):
@@ -123,7 +126,7 @@ class Produccion(models.Model):
                             help_text='Código de lote — Res. 2674/2013 BPM')
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT,
                                  related_name='registros_produccion')
-    cantidad_producida = models.PositiveIntegerField()
+    cantidad_producida = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     observaciones = models.TextField(blank=True)
     registrado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -152,7 +155,9 @@ class ConsumoInsumo(models.Model):
                                    related_name='consumos', verbose_name='Producción')
     insumo = models.ForeignKey(Insumo, on_delete=models.PROTECT,
                                related_name='consumos')
-    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
+    cantidad = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))],
+    )
 
     class Meta:
         verbose_name = 'Consumo de Insumo'
@@ -171,6 +176,7 @@ class RecetaProducto(models.Model):
                                related_name='recetas')
     cantidad_por_unidad = models.DecimalField(
         max_digits=10, decimal_places=4,
+        validators=[MinValueValidator(Decimal('0.0001'))],
         help_text='Cantidad de este insumo por cada unidad producida'
     )
 
@@ -188,8 +194,12 @@ class CompraInsumo(models.Model):
     fecha = models.DateField()
     insumo = models.ForeignKey(Insumo, on_delete=models.PROTECT,
                                related_name='compras')
-    cantidad = models.DecimalField(max_digits=10, decimal_places=2)
-    precio_unitario = models.DecimalField(max_digits=10, decimal_places=2)
+    cantidad = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))],
+    )
+    precio_unitario = models.DecimalField(
+        max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0'))],
+    )
     proveedor = models.CharField(max_length=100, blank=True)
     factura = models.CharField(max_length=50, blank=True,
                                help_text='Número de factura o remisión')
@@ -235,7 +245,7 @@ class Regalia(models.Model):
         verbose_name='Producción',
         help_text='Lote de origen, si se conoce (trazabilidad BPM — Res. 2674/2013)',
     )
-    cantidad = models.PositiveIntegerField()
+    cantidad = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     destinatario = models.CharField(max_length=100, blank=True,
                                     help_text='A quién se le entregó (opcional)')
     motivo = models.CharField(max_length=3, choices=Motivo.choices, default=Motivo.OTRO)

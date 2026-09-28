@@ -165,7 +165,10 @@ btnCargar.addEventListener('click', function () {
   const cantidad   = parseFloat(inputCantidad.value) || 1;
 
   fetch(RECETA_API_URL + productoId + '/')
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
     .then(data => {
       if (!data.receta || data.receta.length === 0) {
         const url = RECETA_UPDATE_TPL.replace('0', productoId);
@@ -223,7 +226,7 @@ btnCargar.addEventListener('click', function () {
         totalForms.value = idx + 1;
       });
     })
-    .catch(() => alert('No se pudo obtener la receta. Verifica la conexión.'));
+    .catch(() => alert('No se pudo obtener la receta. Verifica la conexión o vuelve a iniciar sesión.'));
 });
 
 // Agregar fila manual

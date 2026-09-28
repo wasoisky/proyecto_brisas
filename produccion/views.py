@@ -493,7 +493,15 @@ class InsumoKardexView(RolRequiredMixin, View):
 
 
 def receta_api(request, producto_id):
-    """Devuelve los insumos de la receta de un producto como JSON para precarga del formset."""
+    """Devuelve los insumos de la receta de un producto como JSON para precarga del formset.
+
+    Solo ADMIN/PROD (o superusuario). Responde 401/403 en JSON en lugar de redirigir
+    al login: el fetch de produccion_form.html necesita distinguir el error.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Sesión requerida.'}, status=401)
+    if not (request.user.is_superuser or request.user.rol in ADMIN_PROD):
+        return JsonResponse({'error': 'No tienes permiso para consultar recetas.'}, status=403)
     lineas = (
         RecetaProducto.objects
         .filter(producto_id=producto_id)
