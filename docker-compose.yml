@@ -12,6 +12,8 @@ services:
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
+      # Respaldos de usuarios/backup.py: sin este volumen se pierden al recrear el contenedor.
+      - backups_data:/app/backups
     networks:
       - default
       - proxy_network
@@ -61,3 +63,4 @@ volumes:
   postgres_data:
   static_volume:
   media_volume:
+  backups_data:

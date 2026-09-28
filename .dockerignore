@@ -7,6 +7,7 @@ env/
 .gitignore
 db.sqlite3
 media/
+backups/
 staticfiles/
 *.log
 .env
