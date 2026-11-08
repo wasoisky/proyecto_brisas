@@ -9,7 +9,7 @@ from django.views.generic import ListView, CreateView, UpdateView
 from .backup import BackupError, generar_backup, get_backup_dir, listar_backups
 from .forms import UsuarioCreateForm, UsuarioUpdateForm, AdminPasswordResetForm
 from .mixins import RolRequiredMixin, SOLO_ADMIN, SuperusuarioRequiredMixin
-from .models import Usuario, RegistroAcceso
+from .models import Usuario, RegistroAcceso, RegistroAuditoria
 
 
 class UsuarioListView(RolRequiredMixin, ListView):
@@ -166,4 +166,35 @@ class RegistroAccesoListView(RolRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['acciones'] = RegistroAcceso.Accion.choices
+        return ctx
+
+
+class RegistroAuditoriaListView(RolRequiredMixin, ListView):
+    """Bitácora de operaciones (RS-03): quién creó, modificó o eliminó qué y cuándo."""
+    roles_permitidos = SOLO_ADMIN
+    model = RegistroAuditoria
+    template_name = 'usuarios/auditoria.html'
+    context_object_name = 'registros'
+    paginate_by = 20
+
+    def get_queryset(self):
+        qs = RegistroAuditoria.objects.select_related('usuario')
+        g = self.request.GET
+        if accion := g.get('accion'):
+            qs = qs.filter(accion=accion)
+        if modelo := g.get('modelo'):
+            qs = qs.filter(modelo=modelo)
+        if usuario := g.get('usuario'):
+            qs = qs.filter(usuario_nombre__icontains=usuario)
+        if desde := g.get('desde'):
+            qs = qs.filter(fecha_hora__date__gte=desde)
+        if hasta := g.get('hasta'):
+            qs = qs.filter(fecha_hora__date__lte=hasta)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['acciones'] = RegistroAuditoria.Accion.choices
+        modelos = RegistroAuditoria.objects.order_by().values_list('modelo', flat=True).distinct()
+        ctx['modelos'] = sorted(modelos)
         return ctx

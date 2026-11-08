@@ -7,3 +7,5 @@ class UsuariosConfig(AppConfig):
 
     def ready(self):
         import usuarios.signals  # noqa: F401 — conecta las señales al iniciar
+        from . import auditoria
+        auditoria.conectar()  # bitácora de operaciones (RS-03)
