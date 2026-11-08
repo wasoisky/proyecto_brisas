@@ -110,6 +110,10 @@ class BajaActivoCreateView(RolRequiredMixin, CreateView):
             return redirect('activos:movimiento_detail', pk=self.kwargs['movimiento_pk'])
         return super().dispatch(request, *args, **kwargs)
 
+    def get(self, request, *args, **kwargs):
+        # El formulario vive embebido en el detalle del movimiento; no hay página propia.
+        return redirect('activos:movimiento_detail', pk=self.kwargs['movimiento_pk'])
+
     def form_valid(self, form):
         form.instance.movimiento = self.get_movimiento()
         form.instance.registrado_por = self.request.user

@@ -136,6 +136,13 @@ class BajaActivoViewTests(ActivosTestMixin, TestCase):
         self.assertEqual(baja.registrado_por, self.usuario)
         self.assertEqual(baja.movimiento, self.movimiento)
 
+    def test_get_a_baja_create_redirige_al_detalle_en_vez_de_500(self):
+        url = reverse('activos:baja_create', args=[self.movimiento.pk])
+        response = self.client.get(url)
+        self.assertRedirects(
+            response, reverse('activos:movimiento_detail', args=[self.movimiento.pk])
+        )
+
     def test_detalle_de_movimiento_lista_sus_bajas(self):
         BajaActivo.objects.create(
             movimiento=self.movimiento, cantidad=1,

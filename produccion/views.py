@@ -459,9 +459,15 @@ class InsumoKardexView(RolRequiredMixin, View):
 
         # Unir y ordenar cronológicamente, calcular saldo acumulado
         movimientos = []
-        saldo = 0
         entradas_lista = list(compras)
         salidas_lista  = list(consumos)
+
+        # Saldo inicial = stock previo a los movimientos registrados (p. ej. el stock
+        # cargado al implantar el sistema, que no es una CompraInsumo).
+        total_entradas = sum(float(m['cantidad']) for m in entradas_lista)
+        total_salidas = sum(float(m['cantidad']) for m in salidas_lista)
+        saldo_inicial = round(float(insumo.stock_actual) - total_entradas + total_salidas, 4)
+        saldo = saldo_inicial
 
         todos = sorted(
             [dict(m, _origen='entrada') for m in entradas_lista] +
@@ -488,6 +494,7 @@ class InsumoKardexView(RolRequiredMixin, View):
         return render(request, 'produccion/insumo_kardex.html', {
             'insumo': insumo,
             'movimientos': movimientos,
+            'saldo_inicial': saldo_inicial,
             'saldo_calculado': round(saldo, 4),
         })
 

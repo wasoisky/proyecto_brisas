@@ -202,12 +202,40 @@ class KardexInsumoTests(ProduccionTestMixin, TestCase):
             precio_unitario=Decimal('500'), registrado_por=self.admin,
         )
 
+        # stock coherente con los movimientos (se crearon por ORM, sin pasar por las vistas)
+        self.insumo.stock_actual = Decimal('90')
+        self.insumo.save()
+
         response = self.client.get(reverse('produccion:insumo_kardex', args=[self.insumo.pk]))
 
         self.assertEqual(response.status_code, 200)
         saldos = [m['saldo'] for m in response.context['movimientos']]
         self.assertEqual(saldos, [100.0, 70.0, 90.0])
         self.assertEqual(response.context['saldo_calculado'], 90.0)
+
+    def test_saldo_parte_del_stock_inicial_previo_a_los_movimientos(self):
+        """Insumos cargados con stock inicial (sin CompraInsumo) no deben dar saldos
+        negativos: el kardex reconstruye el saldo inicial desde stock_actual."""
+        self.insumo.stock_actual = Decimal('70')  # 50 inicial + 100 compra - 80 consumo
+        self.insumo.save()
+        CompraInsumo.objects.create(
+            fecha='2026-08-01', insumo=self.insumo, cantidad=Decimal('100'),
+            precio_unitario=Decimal('500'), registrado_por=self.admin,
+        )
+        produccion = Produccion.objects.create(
+            fecha='2026-08-05', lote='PROD-B', producto=self.producto,
+            cantidad_producida=10, registrado_por=self.admin,
+        )
+        ConsumoInsumo.objects.create(produccion=produccion, insumo=self.insumo, cantidad=Decimal('80'))
+        # los signals/vistas no se usaron: stock_actual se fijo a mano arriba
+        self.insumo.refresh_from_db()
+
+        response = self.client.get(reverse('produccion:insumo_kardex', args=[self.insumo.pk]))
+
+        self.assertEqual(response.context['saldo_inicial'], 50.0)
+        saldos = [m['saldo'] for m in response.context['movimientos']]
+        self.assertEqual(saldos, [150.0, 70.0])
+        self.assertEqual(response.context['saldo_calculado'], 70.0)
 
     def test_sin_movimientos_el_saldo_es_cero(self):
         response = self.client.get(reverse('produccion:insumo_kardex', args=[self.insumo.pk]))
