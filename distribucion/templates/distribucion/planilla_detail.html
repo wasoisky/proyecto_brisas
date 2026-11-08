@@ -52,6 +52,46 @@
   </div>
 </div>
 
+<!-- Conciliación de la ruta -->
+{% if conciliacion %}
+<div class="card mb-3">
+  <div class="card-header fw-semibold">Conciliación de la ruta</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Producto</th>
+          <th class="text-end">Cargado</th>
+          <th class="text-end">Entregado</th>
+          <th class="text-end">Averiado</th>
+          <th class="text-end">Debía quedar</th>
+          <th class="text-end">Devuelto</th>
+          <th class="text-end">Diferencia</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in conciliacion %}
+        <tr>
+          <td>{{ f.producto.nombre }}</td>
+          <td class="text-end">{{ f.cargado }}</td>
+          <td class="text-end">{{ f.entregado }}</td>
+          <td class="text-end">{{ f.averiado }}</td>
+          <td class="text-end">{{ f.queda }}</td>
+          <td class="text-end">{% if f.devuelto is None %}<span class="text-muted">—</span>{% else %}{{ f.devuelto }}{% endif %}</td>
+          <td class="text-end fw-semibold">
+            {% if f.diferencia is None %}<span class="text-muted">—</span>
+            {% elif f.diferencia == 0 %}<span class="badge bg-success">Cuadra</span>
+            {% elif f.diferencia > 0 %}<span class="badge bg-danger">Faltan {{ f.diferencia }}</span>
+            {% else %}<span class="badge bg-warning text-dark">Sobran {{ f.diferencia|cut:"-" }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
 <!-- Entregas -->
 <div class="card mb-3">
   <div class="card-header fw-semibold">Entregas</div>
@@ -79,7 +119,7 @@
           <td class="text-end fw-semibold">${{ e.subtotal|floatformat:0 }}</td>
           <td>
             {% if e.modalidad_pago == 'EFE' %}<span class="badge bg-success">Efectivo</span>
-            {% elif e.modalidad_pago == 'NEQ' %}<span class="badge bg-info text-dark">Nequi</span>
+            {% elif e.modalidad_pago == 'NEQ' %}<span class="badge bg-info text-dark">Transf.</span>
             {% else %}<span class="badge bg-warning text-dark">Crédito</span>{% endif %}
           </td>
         </tr>

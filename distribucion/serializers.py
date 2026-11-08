@@ -97,7 +97,7 @@ class EntregaSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         entrega = super().create(validated_data)
-        if entrega.modalidad_pago == Entrega.ModalidadPago.CREDITO:
+        if entrega.modalidad_pago == Entrega.ModalidadPago.CREDITO and entrega.subtotal > 0:
             monto = entrega.subtotal
             Credito.objects.create(
                 cliente=entrega.cliente,
@@ -109,9 +109,11 @@ class EntregaSerializer(serializers.ModelSerializer):
 
 
 class AveriaSerializer(serializers.ModelSerializer):
+    client_uuid = serializers.UUIDField(required=False, allow_null=True)
+
     class Meta:
         model = Averia
-        fields = ['id', 'planilla', 'producto', 'cantidad', 'descripcion']
+        fields = ['id', 'planilla', 'producto', 'cantidad', 'descripcion', 'client_uuid']
         read_only_fields = ['id']
 
     def validate(self, data):
@@ -124,6 +126,15 @@ class AveriaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 f'El año {planilla.fecha.year} ya está cerrado; no se pueden registrar averías.'
             )
+
+        if planilla and planilla.estado != Planilla.Estado.ABIERTA:
+            raise serializers.ValidationError(
+                'La planilla ya no está abierta; no se pueden registrar más averías.'
+            )
+
+        cantidad = data.get('cantidad')
+        if cantidad is not None and cantidad < 1:
+            raise serializers.ValidationError('La cantidad debe ser al menos 1.')
         return data
 
 

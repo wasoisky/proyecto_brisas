@@ -1,3 +1,5 @@
+from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
 from produccion.models import Producto
@@ -80,7 +82,7 @@ class Planilla(models.Model):
 class Entrega(models.Model):
     class ModalidadPago(models.TextChoices):
         EFECTIVO = 'EFE', 'Efectivo'
-        NEQUI = 'NEQ', 'Nequi'
+        NEQUI = 'NEQ', 'Transferencia'  # el código 'NEQ' se conserva para no migrar datos
         CREDITO = 'CRE', 'Crédito'
 
     planilla = models.ForeignKey(Planilla, on_delete=models.CASCADE, related_name='entregas')
@@ -119,6 +121,8 @@ class Averia(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='averias')
     cantidad = models.PositiveIntegerField()
     descripcion = models.TextField(blank=True, verbose_name='Descripción')
+    # Ver Entrega.client_uuid: reintentos sin señal no deben duplicar la avería.
+    client_uuid = models.UUIDField(null=True, blank=True, unique=True, editable=False)
 
     class Meta:
         verbose_name = 'Avería'
@@ -150,3 +154,33 @@ class Credito(models.Model):
 
     def __str__(self):
         return f'Crédito {self.cliente.nombre} — ${self.saldo_pendiente} pendiente'
+
+
+class CargaRuta(models.Model):
+    """Producto que el distribuidor carga en el camión al iniciar la ruta y lo que
+    devuelve a planta al cerrarla (una fila por producto y planilla).
+
+    cantidad_devuelta es NULL mientras la ruta no se cierra. La conciliación
+    (cargado - entregado - averiado - devuelto) se calcula en conciliacion.py.
+    """
+    planilla = models.ForeignKey(Planilla, on_delete=models.CASCADE, related_name='cargas')
+    producto = models.ForeignKey(Producto, on_delete=models.PROTECT, related_name='cargas_ruta')
+    cantidad_cargada = models.PositiveIntegerField(validators=[MinValueValidator(1)], verbose_name='Cantidad cargada')
+    cantidad_devuelta = models.PositiveIntegerField(null=True, blank=True, verbose_name='Cantidad devuelta')
+
+    class Meta:
+        verbose_name = 'Carga de ruta'
+        verbose_name_plural = 'Cargas de ruta'
+        unique_together = ('planilla', 'producto')
+        ordering = ['producto__nombre']
+
+    def __str__(self):
+        return f'{self.producto.nombre} x{self.cantidad_cargada} — {self.planilla}'
+
+    def clean(self):
+        super().clean()
+        if self.cantidad_devuelta is not None and self.cantidad_devuelta > (self.cantidad_cargada or 0):
+            raise ValidationError({'cantidad_devuelta': 'No se puede devolver más de lo que se cargó.'})
+        if self.planilla_id:
+            from reportes.cierres import validar_periodo_abierto
+            validar_periodo_abierto(self.planilla.fecha)

@@ -78,6 +78,17 @@ class EntregaCreateAPIView(APIView):
 class AveriaCreateAPIView(APIView):
     permission_classes = [PermisoDist]
     def post(self, request):
+        client_uuid = request.data.get('client_uuid')
+        if client_uuid:
+            try:
+                existente = Averia.objects.select_related('planilla').filter(client_uuid=client_uuid).first()
+            except (ValueError, ValidationError):
+                existente = None
+            if existente and (
+                request.user.is_superuser or getattr(request.user, 'rol', None) == 'ADMIN'
+                or existente.planilla.distribuidor_id == request.user.pk
+            ):
+                return Response(AveriaSerializer(existente).data, status=status.HTTP_200_OK)
         serializer = AveriaSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             serializer.save()

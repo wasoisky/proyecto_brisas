@@ -9,6 +9,9 @@ urlpatterns = [
     path('clientes/nuevo/', views.ClienteCreateView.as_view(), name='cliente_create'),
     path('clientes/<int:pk>/editar/', views.ClienteUpdateView.as_view(), name='cliente_update'),
 
+    # Precios por categoría (admin)
+    path('precios/', views.PreciosView.as_view(), name='precios'),
+
     # Planillas (admin)
     path('planillas/', views.PlanillaListView.as_view(), name='planilla_list'),
     path('planillas/<int:pk>/', views.PlanillaDetailView.as_view(), name='planilla_detail'),

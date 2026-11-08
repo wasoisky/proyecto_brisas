@@ -45,6 +45,9 @@ class ProductoListView(RolRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['presentaciones'] = Producto.Presentacion.choices
+        from distribucion.conciliacion import disponible_en_planta
+        for p in ctx['productos']:
+            p.disponible = disponible_en_planta(p)
         return ctx
 
     def get_template_names(self):

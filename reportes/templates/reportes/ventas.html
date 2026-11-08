@@ -3,7 +3,10 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-  <h4 class="mb-0"><i class="bi bi-graph-up me-2"></i>Ventas consolidadas</h4>
+  <div>
+    <h4 class="mb-0"><i class="bi bi-graph-up me-2"></i>Ventas consolidadas</h4>
+    <p class="text-muted small mb-0">Solo incluye planillas <strong>validadas</strong>; las pendientes de validación aparecen cuando las valides.</p>
+  </div>
   <div class="d-flex gap-2 flex-wrap">
     <a href="{% url 'reportes:ventas_excel' %}?fecha_desde={{ fecha_desde }}&fecha_hasta={{ fecha_hasta }}"
        class="btn btn-success btn-sm">
@@ -119,7 +122,7 @@
           <div class="col-4">
             <div class="border rounded p-3">
               <div class="fs-4 fw-bold text-info">${{ pago_totales.NEQ|floatformat:0 }}</div>
-              <div class="small text-muted">Nequi</div>
+              <div class="small text-muted">Transferencia</div>
             </div>
           </div>
           <div class="col-4">

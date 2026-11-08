@@ -6,6 +6,7 @@
           <th>Nombre</th>
           <th>Presentación</th>
           <th>Unidad</th>
+          <th class="text-end" title="Producido − cargado en rutas + devuelto − regalías">Disponible en planta</th>
           <th class="text-center">Estado</th>
           <th class="text-end">Acciones</th>
         </tr>
@@ -16,6 +17,7 @@
           <td>{{ p.nombre }}</td>
           <td>{{ p.get_presentacion_display }}</td>
           <td>{{ p.unidad_medida }}</td>
+          <td class="text-end fw-semibold {% if p.disponible < 0 %}text-danger{% endif %}">{{ p.disponible }}</td>
           <td class="text-center">
             {% if p.activo %}
               <span class="badge bg-success">Activo</span>

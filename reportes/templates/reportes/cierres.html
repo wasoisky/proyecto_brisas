@@ -66,9 +66,9 @@
               <span class="badge bg-success">Abierto</span>
             {% endif %}
           </td>
-          <td>{{ cierre.cerrado_por.get_full_name|default:cierre.cerrado_por.username }}</td>
+          <td>{% if cierre.cerrado_por %}{{ cierre.cerrado_por.get_full_name|default:cierre.cerrado_por.username }}{% else %}—{% endif %}</td>
           <td>{{ cierre.fecha_cierre|date:"d/m/Y H:i" }}</td>
-          <td>{{ cierre.reabierto_por.get_full_name|default:cierre.reabierto_por.username|default:"—" }}</td>
+          <td>{% if cierre.reabierto_por %}{{ cierre.reabierto_por.get_full_name|default:cierre.reabierto_por.username }}{% else %}—{% endif %}</td>
           <td class="text-end">
             {% if cierre.cerrado %}
             <form method="post" action="{% url 'reportes:cierre_reabrir' anio=cierre.anio %}" class="d-inline">

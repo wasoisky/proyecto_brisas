@@ -22,6 +22,18 @@ from .forms import DescuadreForm, FiltroVentasForm
 from .models import Descuadre, CierreAnual
 
 
+# ── Regla de negocio: solo lo validado cuenta en los reportes ─────────────────
+# Una planilla abierta o pendiente de validación aún no fue auditada por el ADMIN,
+# así que sus ventas y créditos no entran en ningún total hasta que se valide.
+
+def entregas_validadas():
+    return Entrega.objects.filter(planilla__estado=Planilla.Estado.VALIDADA)
+
+
+def creditos_validados():
+    return Credito.objects.filter(entrega__planilla__estado=Planilla.Estado.VALIDADA)
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 class ReportesDashboardView(RolRequiredMixin, TemplateView):
@@ -40,10 +52,15 @@ class ReportesDashboardView(RolRequiredMixin, TemplateView):
         )
         ctx['total_ventas_mes'] = sum(
             e.subtotal for e in
-            Entrega.objects.filter(planilla__fecha__gte=inicio_mes).select_related('producto')
+            entregas_validadas().filter(planilla__fecha__gte=inicio_mes)
+        )
+        ctx['ventas_por_validar'] = sum(
+            e.subtotal for e in
+            Entrega.objects.filter(planilla__fecha__gte=inicio_mes)
+            .exclude(planilla__estado=Planilla.Estado.VALIDADA)
         )
         ctx['creditos_pendientes'] = (
-            Credito.objects.filter(pagado=False)
+            creditos_validados().filter(pagado=False)
             .aggregate(total=Sum('saldo_pendiente'))['total'] or 0
         )
         ctx['alertas_insumos'] = (
@@ -87,7 +104,7 @@ class VentasConsolidadasView(RolRequiredMixin, TemplateView):
         form, f_desde, f_hasta, dist_id = self._get_filtros()
         ctx['form'] = form
 
-        qs = Entrega.objects.filter(
+        qs = entregas_validadas().filter(
             planilla__fecha__gte=f_desde,
             planilla__fecha__lte=f_hasta,
         ).select_related('producto', 'cliente', 'planilla__distribuidor')
@@ -134,7 +151,7 @@ class ExportarVentasExcelView(RolRequiredMixin, View):
         f_desde = request.GET.get('fecha_desde') or str(hoy.replace(day=1))
         f_hasta = request.GET.get('fecha_hasta') or str(hoy)
 
-        qs = Entrega.objects.filter(
+        qs = entregas_validadas().filter(
             planilla__fecha__gte=f_desde,
             planilla__fecha__lte=f_hasta,
         ).select_related('producto', 'cliente', 'planilla__distribuidor').order_by('planilla__fecha')
@@ -262,7 +279,7 @@ class CreditosPendientesView(RolRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        qs = Credito.objects.filter(pagado=False).select_related(
+        qs = creditos_validados().filter(pagado=False).select_related(
             'cliente', 'entrega__planilla__distribuidor', 'entrega__producto'
         )
         if cliente := self.request.GET.get('cliente'):
@@ -272,7 +289,7 @@ class CreditosPendientesView(RolRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['total_pendiente'] = (
-            Credito.objects.filter(pagado=False)
+            creditos_validados().filter(pagado=False)
             .aggregate(t=Sum('saldo_pendiente'))['t'] or 0
         )
         return ctx
@@ -282,7 +299,7 @@ class CreditoPagarView(RolRequiredMixin, View):
     roles_permitidos = SOLO_ADMIN
 
     def post(self, request, pk):
-        credito = get_object_or_404(Credito, pk=pk, pagado=False)
+        credito = get_object_or_404(creditos_validados(), pk=pk, pagado=False)
         try:
             monto_pago = round(float(request.POST.get('monto_pago', 0)), 2)
         except (ValueError, TypeError):
@@ -338,7 +355,7 @@ class ExportarVentasPDFView(RolRequiredMixin, View):
         f_hasta = request.GET.get('fecha_hasta') or str(hoy)
 
         qs = (
-            Entrega.objects
+            entregas_validadas()
             .filter(planilla__fecha__gte=f_desde, planilla__fecha__lte=f_hasta)
             .select_related('producto', 'cliente', 'planilla__distribuidor')
             .order_by('planilla__fecha', 'planilla__distribuidor__first_name')
@@ -542,8 +559,8 @@ MESES_NOMBRE = [
 
 def _calcular_reporte_anual(anio):
     produccion_qs = Produccion.objects.filter(fecha__year=anio)
-    entregas_qs = Entrega.objects.filter(planilla__fecha__year=anio).select_related('planilla')
-    creditos_qs = Credito.objects.filter(fecha_creacion__year=anio)
+    entregas_qs = entregas_validadas().filter(planilla__fecha__year=anio).select_related('planilla')
+    creditos_qs = creditos_validados().filter(fecha_creacion__year=anio)
     descuadres_qs = Descuadre.objects.filter(fecha__year=anio)
 
     produccion_por_mes = {m: 0 for m in range(1, 13)}

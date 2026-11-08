@@ -25,17 +25,78 @@
   </div>
 </div>
 
+<div id="banner-offline" class="alert alert-warning d-none" role="alert">
+  <i class="bi bi-wifi-off me-2"></i><strong>Sin señal.</strong>
+  Puedes seguir registrando entregas y averías: quedan guardadas en este celular y se envían solas cuando vuelva la señal.
+  <strong>No cierres ni recargues esta página.</strong>
+</div>
+
 {% if planilla.estado == 'ABR' %}
 <!-- Planilla abierta: formulario de entrega + lista -->
 <div class="row g-3">
 
-  <!-- Formulario entrega -->
+  <!-- Carga del camión -->
   <div class="col-md-5">
+    <div class="card mb-3">
+      <div class="card-header fw-semibold"><i class="bi bi-box-seam me-2"></i>Carga del camión</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'distribucion:ruta_planilla' planilla.pk %}" class="row g-2 align-items-end">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="guardar_carga">
+          <div class="col-12 col-sm-6">
+            <label class="form-label small fw-semibold mb-1" for="f-carga-producto">Producto</label>
+            <select id="f-carga-producto" name="producto" class="form-select form-select-sm" required>
+              <option value="">— Seleccionar —</option>
+              {% for p in productos %}
+              <option value="{{ p.pk }}">{{ p.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-sm-3">
+            <label class="form-label small fw-semibold mb-1" for="f-carga-cantidad">Cargo</label>
+            <input type="number" id="f-carga-cantidad" name="cantidad" class="form-control form-control-sm" min="1" inputmode="numeric" required>
+          </div>
+          <div class="col-6 col-sm-3 d-grid">
+            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+          </div>
+          <div class="col-12 small text-muted" id="hint-disponible"></div>
+        </form>
+
+        <div class="table-responsive mt-3">
+          <table class="table table-sm mb-0 align-middle" id="tabla-camion">
+            <thead class="table-light">
+              <tr>
+                <th>En el camión</th>
+                <th class="text-end">Cargó</th>
+                <th class="text-end">Entregó</th>
+                <th class="text-end">Avería</th>
+                <th class="text-end">Queda</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in resumen %}
+              <tr data-pid="{{ f.producto.pk }}">
+                <td class="small">{{ f.producto.nombre }}</td>
+                <td class="text-end c-cargado">{{ f.cargado }}</td>
+                <td class="text-end c-entregado">{{ f.entregado }}</td>
+                <td class="text-end c-averiado">{{ f.averiado }}</td>
+                <td class="text-end fw-bold c-queda">{{ f.queda }}</td>
+              </tr>
+              {% empty %}
+              <tr id="fila-vacia-camion"><td colspan="5" class="text-center text-muted small py-2">Aún no registras la carga. Hazlo antes de salir para llevar el control de lo que queda.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  <!-- Formulario entrega -->
     <div class="card">
       <div class="card-header fw-semibold"><i class="bi bi-plus-circle me-2"></i>Registrar entrega</div>
       <div class="card-body">
         <div class="mb-2">
-          <label class="form-label small fw-semibold">Cliente</label>
+          <label class="form-label small fw-semibold" for="f-cliente">Cliente</label>
           <select id="f-cliente" class="form-select form-select-sm">
             <option value="">— Seleccionar —</option>
             {% for c in clientes %}
@@ -43,41 +104,27 @@
             {% endfor %}
           </select>
         </div>
-        <div class="mb-2">
-          <label class="form-label small fw-semibold">Producto</label>
-          <select id="f-producto" class="form-select form-select-sm">
-            <option value="">— Seleccionar —</option>
-            {% for p in productos %}
-            <option value="{{ p.pk }}">{{ p.nombre }}</option>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold" for="f-pago">Forma de pago</label>
+          <select id="f-pago" class="form-select form-select-sm">
+            {% for val, label in modalidades %}
+            <option value="{{ val }}">{{ label }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="row g-2 mb-2">
-          <div class="col-6">
-            <label class="form-label small fw-semibold">Cantidad</label>
-            <input type="number" id="f-cantidad" class="form-control form-control-sm" min="1" value="1">
-          </div>
-          <div class="col-6">
-            <label class="form-label small fw-semibold">Precio</label>
-            <input type="number" id="f-precio" class="form-control form-control-sm" step="50" min="0">
-          </div>
+
+        <div class="small fw-semibold mb-1">Productos de esta entrega</div>
+        <div id="lineas"></div>
+        <button type="button" class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="agregarLinea()">
+          <i class="bi bi-plus-lg me-1"></i>Agregar otro producto
+        </button>
+        <div class="d-flex justify-content-between align-items-center mb-3 px-1">
+          <span class="small text-muted">Total de la entrega</span>
+          <span class="fw-bold fs-5" id="total-entrega">$0</span>
         </div>
-        <div class="row g-2 mb-3">
-          <div class="col-6">
-            <label class="form-label small fw-semibold">Pago</label>
-            <select id="f-pago" class="form-select form-select-sm">
-              {% for val, label in modalidades %}
-              <option value="{{ val }}">{{ label }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-6">
-            <label class="form-label small fw-semibold">Devolución</label>
-            <input type="number" id="f-devolucion" class="form-control form-control-sm" min="0" value="0">
-          </div>
-        </div>
+
         <div class="d-grid gap-2">
-          <button type="button" class="btn btn-primary btn-sm" onclick="submitEntrega()">
+          <button type="button" id="btn-guardar-entrega" class="btn btn-primary btn-sm" onclick="submitEntrega()">
             <i class="bi bi-check-lg me-1"></i>Guardar entrega
           </button>
         </div>
@@ -85,27 +132,59 @@
       </div>
     </div>
 
+    <template id="tpl-linea">
+      <div class="linea border rounded p-2 mb-2">
+        <div class="d-flex gap-2 mb-2">
+          <select class="form-select form-select-sm l-producto" aria-label="Producto">
+            <option value="">— Producto —</option>
+            {% for p in productos %}
+            <option value="{{ p.pk }}">{{ p.nombre }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn btn-outline-danger btn-sm l-quitar" title="Quitar este producto" aria-label="Quitar este producto">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+        <div class="row g-2">
+          <div class="col-3">
+            <label class="form-label small mb-0">Cant.</label>
+            <input type="number" class="form-control form-control-sm l-cantidad" min="1" value="1" inputmode="numeric">
+          </div>
+          <div class="col-4">
+            <label class="form-label small mb-0">Precio c/u</label>
+            <input type="text" class="form-control form-control-sm l-precio" readonly placeholder="—">
+          </div>
+          <div class="col-5">
+            <label class="form-label small mb-0">Subtotal</label>
+            <input type="text" class="form-control form-control-sm fw-semibold l-subtotal" readonly placeholder="—">
+          </div>
+        </div>
+      </div>
+    </template>
+
     <!-- Avería -->
     <div class="card mt-3">
       <div class="card-header fw-semibold text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Registrar avería</div>
       <div class="card-body">
-        <form method="post" action="{% url 'distribucion:ruta_planilla' planilla.pk %}">
-          {% csrf_token %}
-          <input type="hidden" name="accion" value="agregar_averia">
-          <div class="mb-2">
-            <label class="form-label small fw-semibold">Producto</label>
-            {{ averia_form.producto }}
-          </div>
-          <div class="mb-2">
-            <label class="form-label small fw-semibold">Cantidad</label>
-            {{ averia_form.cantidad }}
-          </div>
-          <div class="mb-2">
-            <label class="form-label small fw-semibold">Descripción</label>
-            {{ averia_form.descripcion }}
-          </div>
-          <button type="submit" class="btn btn-outline-danger btn-sm w-100">Registrar avería</button>
-        </form>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold" for="f-av-producto">Producto</label>
+          <select id="f-av-producto" class="form-select form-select-sm">
+            <option value="">— Seleccionar —</option>
+            {% for p in productos %}
+            <option value="{{ p.pk }}">{{ p.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold" for="f-av-cantidad">Cantidad</label>
+          <input type="number" id="f-av-cantidad" class="form-control form-control-sm" min="1" value="1" inputmode="numeric">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold" for="f-av-desc">Descripción</label>
+          <textarea id="f-av-desc" class="form-control form-control-sm" rows="2" placeholder="Si lo dejas vacío se registra como Rotura"></textarea>
+        </div>
+        <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="submitAveria()">Registrar avería</button>
+        <div id="msg-averia" class="mt-2 small"></div>
       </div>
     </div>
   </div>
@@ -137,7 +216,7 @@
               <td class="text-end fw-semibold">${{ e.subtotal|floatformat:0 }}</td>
               <td>
                 {% if e.modalidad_pago == 'EFE' %}<span class="badge bg-success">Efe</span>
-                {% elif e.modalidad_pago == 'NEQ' %}<span class="badge bg-info text-dark">Neq</span>
+                {% elif e.modalidad_pago == 'NEQ' %}<span class="badge bg-info text-dark">Transf.</span>
                 {% else %}<span class="badge bg-warning text-dark">Cré</span>{% endif %}
               </td>
             </tr>
@@ -149,30 +228,59 @@
       </div>
     </div>
 
-    {% if averias %}
     <div class="card mt-3">
       <div class="card-header fw-semibold text-danger small">Averías registradas</div>
       <div class="table-responsive">
         <table class="table table-sm mb-0">
-          <tbody>
+          <tbody id="tbody-averias">
             {% for a in averias %}
             <tr><td>{{ a.producto.nombre }}</td><td class="text-end">x{{ a.cantidad }}</td></tr>
+            {% empty %}
+            <tr id="fila-vacia-averias"><td colspan="2" class="text-center text-muted py-2 small">Sin averías.</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     </div>
-    {% endif %}
 
-    <!-- Enviar para validación -->
-    <div class="mt-3">
-      <form method="post" action="{% url 'distribucion:ruta_planilla' planilla.pk %}" onsubmit="return confirmarEnvioValidacion()">
-        {% csrf_token %}
-        <input type="hidden" name="accion" value="enviar_validacion">
-        <button type="submit" class="btn btn-success w-100">
-          <i class="bi bi-send-check me-2"></i>Enviar planilla para validación
-        </button>
-      </form>
+    <!-- Cierre de ruta: devolución por producto + enviar para validación -->
+    <div class="card mt-3">
+      <div class="card-header fw-semibold"><i class="bi bi-flag me-2"></i>Cierre de ruta</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'distribucion:ruta_planilla' planilla.pk %}" onsubmit="return confirmarEnvioValidacion()">
+          {% csrf_token %}
+          <input type="hidden" name="accion" value="enviar_validacion">
+          {% if resumen %}
+          <p class="small text-muted mb-2">Al regresar, escribe cuánto devuelves a planta de cada producto (0 si nada). Ya aparece lo que debería quedar.</p>
+          <div class="table-responsive mb-3">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr><th>Producto</th><th class="text-end">Debe quedar</th><th class="text-end" style="width:130px">Devuelve</th></tr>
+              </thead>
+              <tbody>
+                {% for f in resumen %}{% if f.cargado %}
+                <tr data-pid-cierre="{{ f.producto.pk }}">
+                  <td class="small">{{ f.producto.nombre }}</td>
+                  <td class="text-end c-queda-cierre">{{ f.queda }}</td>
+                  <td>
+                    <input type="number" min="0" max="{{ f.cargado }}" inputmode="numeric" required
+                           class="form-control form-control-sm text-end i-devuelto"
+                           name="devuelto_{{ f.producto.pk }}" value="{% if f.queda > 0 %}{{ f.queda }}{% else %}0{% endif %}"
+                           aria-label="Devolución de {{ f.producto.nombre }}">
+                  </td>
+                </tr>
+                {% endif %}{% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p class="small text-muted mb-2">No registraste carga en esta ruta, así que no hay devolución que conciliar.</p>
+          {% endif %}
+          <button type="submit" class="btn btn-success w-100">
+            <i class="bi bi-send-check me-2"></i>Enviar planilla para validación
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 </div>
@@ -199,57 +307,72 @@ axios.defaults.timeout = 15000;  // sin datos, la petición no debe quedar colga
 
 {% if planilla %}
 const PLANILLA_ID = {{ planilla.pk }};
-const STORAGE_KEY = `brisas_pending_${PLANILLA_ID}`;
+
+// Colas de pendientes en localStorage (la de entregas conserva su clave original)
+const COLAS = {
+  entregas: { key: `brisas_pending_${PLANILLA_ID}`, url: '/distribucion/api/entregas/' },
+  averias:  { key: `brisas_pending_averias_${PLANILLA_ID}`, url: '/distribucion/api/averias/' },
+};
 
 // Precios por cliente: { clienteId: { productoId: precio } }
 const PRECIOS = {{ precios_json|safe }};
 
+// Control del camión: { productoId: {nombre, cargado, entregado, averiado} } según el servidor.
+// Lo que está en cola sin señal se suma aparte (ver renderCamion).
+const CAMION = {{ camion_json|safe }};
+// Producido - cargado + devuelto - regalías, por producto (solo informativo al cargar).
+const DISPONIBLES = {{ disponibles_json|safe }};
+
+function el(id) { return document.getElementById(id); }
+
 // ── Estado de red ──────────────────────────────────────────────────────────
-const indicador = document.getElementById('indicador-red');
 function actualizarRed() {
+  const indicador = el('indicador-red');
+  const banner = el('banner-offline');
   if (navigator.onLine) {
     indicador.className = 'badge bg-success';
     indicador.textContent = '● En línea';
+    if (banner) banner.classList.add('d-none');
     syncPendientes();
   } else {
     indicador.className = 'badge bg-warning text-dark';
     indicador.textContent = '● Sin señal';
+    if (banner) banner.classList.remove('d-none');
   }
 }
 window.addEventListener('online', actualizarRed);
 window.addEventListener('offline', actualizarRed);
-actualizarRed();
 
-// ── Auto-precio ────────────────────────────────────────────────────────────
-['f-cliente', 'f-producto'].forEach(id =>
-  document.getElementById(id)?.addEventListener('change', autoCompletarPrecio)
-);
-function autoCompletarPrecio() {
-  const cId = parseInt(document.getElementById('f-cliente').value);
-  const pId = parseInt(document.getElementById('f-producto').value);
-  const input = document.getElementById('f-precio');
-  if (cId && pId && PRECIOS[cId]?.[pId]) {
-    input.value = PRECIOS[cId][pId];
-  }
+// Evitar perder el trabajo sin señal: recargar sin conexión no abriría la página.
+window.addEventListener('beforeunload', (ev) => {
+  if (!navigator.onLine || totalPendientes() > 0) { ev.preventDefault(); ev.returnValue = ''; }
+});
+
+// ── Colas de pendientes ────────────────────────────────────────────────────
+function leerCola(nombre) {
+  try { return JSON.parse(localStorage.getItem(COLAS[nombre].key) || '[]'); }
+  catch (e) { return []; }
 }
-
-// ── Pendientes localStorage ────────────────────────────────────────────────
-function getPendientes() { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
-function setPendientes(arr) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-  const badge = document.getElementById('badge-pendientes');
-  badge.textContent = arr.length;
-  badge.style.display = arr.length ? '' : 'none';
+function escribirCola(nombre, arr) {
+  localStorage.setItem(COLAS[nombre].key, JSON.stringify(arr));
+  actualizarBadge();
 }
-
-function guardarPendiente(data) {
-  const arr = getPendientes();
+function totalPendientes() { return leerCola('entregas').length + leerCola('averias').length; }
+function actualizarBadge() {
+  const n = totalPendientes();
+  const badge = el('badge-pendientes');
+  badge.textContent = n;
+  badge.style.display = n ? '' : 'none';
+  renderCamion();
+}
+function encolar(nombre, data) {
+  const arr = leerCola(nombre);
   arr.push({ ...data, _tid: Date.now() });
-  setPendientes(arr);
+  escribirCola(nombre, arr);
 }
 
-// Identificador único por entrega: si el envío se repite (respuesta perdida sin señal),
-// el servidor reconoce la entrega y no la duplica.
+// Identificador único por registro: si el envío se repite (respuesta perdida sin
+// señal), el servidor reconoce el registro y no lo duplica.
 function nuevoUuid() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -260,9 +383,8 @@ function nuevoUuid() {
 
 // Error de validación del servidor (4xx): reintentar no lo arregla.
 function esRechazo(e) {
-  return e.response && e.response.status >= 400 && e.response.status < 500
-         && e.response.status !== 408 && e.response.status !== 429
-         && e.response.status !== 401 && e.response.status !== 403;
+  const s = e.response && e.response.status;
+  return !!s && s >= 400 && s < 500 && ![401, 403, 408, 429].includes(s);
 }
 function textoError(e) {
   const d = e.response && e.response.data;
@@ -270,108 +392,223 @@ function textoError(e) {
   if (typeof d === 'string') return d;
   return Object.values(d).flat().join(' ');
 }
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function escapar(t) {
+  return String(t).replace(/[&<>"']/g, c => ESCAPES[c]);
+}
+
+// Envía un registro: online lo manda; sin señal o error temporal lo deja en cola.
+async function enviarRegistro(nombre, data) {
+  if (navigator.onLine) {
+    try {
+      const resp = await axios.post(COLAS[nombre].url, data);
+      pintarFila(nombre, resp.data);
+      sumarABase(nombre, data);
+      return { estado: 'ok' };
+    } catch (e) {
+      if (esRechazo(e)) return { estado: 'rechazo', texto: textoError(e) };
+    }
+  }
+  encolar(nombre, data);
+  return { estado: 'pendiente' };
+}
 
 let sincronizando = false;
 async function syncPendientes() {
-  if (sincronizando) return;
-  const arr = getPendientes();
-  if (!arr.length) return;
+  if (sincronizando || totalPendientes() === 0) return;
   sincronizando = true;
-  const fallidos = [];
   const rechazados = [];
-  for (const item of arr) {
-    const { _tid, ...data } = item;
-    try {
-      const resp = await axios.post('/distribucion/api/entregas/', data);
-      appendEntregaFila(resp.data);
-    } catch (e) {
-      if (esRechazo(e)) rechazados.push(`${data._etiqueta || 'Entrega'}: ${textoError(e)}`);
-      else fallidos.push(item);   // sin señal / error temporal: se reintenta
+  for (const nombre of Object.keys(COLAS)) {
+    const fallidos = [];
+    for (const item of leerCola(nombre)) {
+      const { _tid, ...data } = item;
+      try {
+        const resp = await axios.post(COLAS[nombre].url, data);
+        pintarFila(nombre, resp.data);
+        sumarABase(nombre, data);
+      } catch (e) {
+        if (esRechazo(e)) rechazados.push(`${data._etiqueta || nombre}: ${textoError(e)}`);
+        else fallidos.push(item);   // sin señal / error temporal: se reintenta
+      }
     }
+    escribirCola(nombre, fallidos);
   }
-  setPendientes(fallidos);
   sincronizando = false;
   if (rechazados.length) {
-    alert('Estas entregas NO se pudieron registrar. Avísale al administrador:\n\n' + rechazados.join('\n'));
+    alert('Estos registros NO se pudieron guardar. Avísale al administrador:\n\n' + rechazados.join('\n'));
   }
 }
 
-// ── Agregar entrega ────────────────────────────────────────────────────────
-async function submitEntrega() {
-  const cliente = parseInt(document.getElementById('f-cliente').value);
-  const producto = parseInt(document.getElementById('f-producto').value);
-  const cantidad = parseInt(document.getElementById('f-cantidad').value);
-  const precio = parseFloat(document.getElementById('f-precio').value);
-  const pago = document.getElementById('f-pago').value;
-  const devolucion = parseInt(document.getElementById('f-devolucion').value) || 0;
-  const msg = document.getElementById('msg-entrega');
-
-  if (!cliente || !producto || !cantidad || !precio) {
-    msg.innerHTML = '<span class="text-danger">Completa todos los campos.</span>';
-    return;
-  }
-
-  const etiqueta = `${document.getElementById('f-cliente').selectedOptions[0].text} x${cantidad}`;
-  const data = { planilla: PLANILLA_ID, cliente, producto, cantidad,
-                 precio_unitario: precio, modalidad_pago: pago, devolucion,
-                 client_uuid: nuevoUuid(), _etiqueta: etiqueta };
-
-  if (navigator.onLine) {
-    try {
-      const resp = await axios.post('/distribucion/api/entregas/', data);
-      appendEntregaFila(resp.data);
-      resetFormEntrega();
-      msg.innerHTML = '<span class="text-success">✓ Guardado.</span>';
-      setTimeout(() => msg.innerHTML = '', 2000);
-    } catch (e) {
-      if (esRechazo(e)) {
-        msg.innerHTML = '<span class="text-danger">No se guardó: ' + textoError(e) + '</span>';
-      } else {
-        guardarPendiente(data);
-        msg.innerHTML = '<span class="text-warning">Sin conexión. Guardado localmente.</span>';
-        resetFormEntrega();
-      }
-    }
-  } else {
-    guardarPendiente(data);
-    resetFormEntrega();
-    msg.innerHTML = '<span class="text-warning">Sin señal. Se sincronizará automáticamente.</span>';
-  }
+function pintarFila(nombre, resp) {
+  if (nombre === 'entregas') appendEntregaFila(resp);
+  else appendAveriaFila(resp);
 }
 
 function appendEntregaFila(e) {
-  const vacia = document.getElementById('fila-vacia');
+  const vacia = el('fila-vacia');
   if (vacia) vacia.remove();
   const pago = { EFE: '<span class="badge bg-success">Efe</span>',
-                 NEQ: '<span class="badge bg-info text-dark">Neq</span>',
+                 NEQ: '<span class="badge bg-info text-dark">Transf.</span>',
                  CRE: '<span class="badge bg-warning text-dark">Cré</span>' };
   const tr = document.createElement('tr');
   tr.innerHTML = `
-    <td class="small">${e.cliente_nombre}</td>
-    <td class="small">${e.producto_nombre}</td>
+    <td class="small">${escapar(e.cliente_nombre)}</td>
+    <td class="small">${escapar(e.producto_nombre)}</td>
     <td class="text-end">${e.cantidad}</td>
     <td class="text-end fw-semibold">$${Math.round(e.subtotal)}</td>
-    <td>${pago[e.modalidad_pago] || e.modalidad_pago}</td>`;
-  document.getElementById('tbody-entregas').appendChild(tr);
-
-  const totalEl = document.getElementById('total-ventas');
-  totalEl.textContent = (parseFloat(totalEl.textContent.replace(/,/g,'')) || 0) + e.subtotal;
+    <td>${pago[e.modalidad_pago] || escapar(e.modalidad_pago)}</td>`;
+  el('tbody-entregas').appendChild(tr);
+  const totalEl = el('total-ventas');
+  totalEl.textContent = (parseFloat(totalEl.textContent.replace(/[.,]/g, '')) || 0) + e.subtotal;
 }
 
-function resetFormEntrega() {
-  ['f-cliente','f-producto','f-precio','f-devolucion'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = id === 'f-devolucion' ? '0' : '';
+function appendAveriaFila(a) {
+  const vacia = el('fila-vacia-averias');
+  if (vacia) vacia.remove();
+  const opt = el('f-av-producto').querySelector(`option[value="${a.producto}"]`);
+  const nombre = opt ? opt.textContent : 'Producto';
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${escapar(nombre)}</td><td class="text-end">x${a.cantidad}</td>`;
+  el('tbody-averias').appendChild(tr);
+}
+
+// ── Líneas de producto de una entrega ──────────────────────────────────────
+function lineas() { return Array.from(document.querySelectorAll('#lineas .linea')); }
+
+function precioDe(clienteId, productoId) {
+  const delCliente = PRECIOS[clienteId];
+  return delCliente ? delCliente[productoId] : undefined;
+}
+function autoPrecioLinea(linea) {
+  const c = parseInt(el('f-cliente').value);
+  const p = parseInt(linea.querySelector('.l-producto').value);
+  const inp = linea.querySelector('.l-precio');
+  if (!c || !p) { inp.value = ''; inp.placeholder = '—'; actualizarSubtotales(); return; }
+  const precio = precioDe(c, p);
+  inp.value = precio ? precio : '';
+  inp.placeholder = precio ? '' : 'Sin precio';
+  actualizarSubtotales();
+}
+function dinero(n) { return '$' + Math.round(n).toLocaleString('es-CO'); }
+function actualizarSubtotales() {
+  let total = 0;
+  lineas().forEach(l => {
+    const precio = parseFloat(l.querySelector('.l-precio').value) || 0;
+    const cant = parseInt(l.querySelector('.l-cantidad').value) || 0;
+    const sub = precio * Math.max(cant, 0);
+    l.querySelector('.l-subtotal').value = precio && cant > 0 ? dinero(sub) : '';
+    total += sub;
   });
-  document.getElementById('f-cantidad').value = '1';
+  el('total-entrega').textContent = dinero(total);
+}
+function agregarLinea() {
+  const nodo = el('tpl-linea').content.firstElementChild.cloneNode(true);
+  nodo.querySelector('.l-producto').addEventListener('change', () => autoPrecioLinea(nodo));
+  nodo.querySelector('.l-cantidad').addEventListener('input', actualizarSubtotales);
+  nodo.querySelector('.l-quitar').addEventListener('click', () => {
+    if (lineas().length > 1) nodo.remove();
+    else { nodo.querySelector('.l-producto').value = ''; autoPrecioLinea(nodo); }
+  });
+  el('lineas').appendChild(nodo);
+  actualizarSubtotales();
 }
 
-// No permitir enviar la planilla a validación con entregas sin sincronizar:
-// una vez enviada ya no acepta más entregas y se perderían.
+function mostrarMsg(id, clase, html) { el(id).innerHTML = `<span class="${clase}">${html}</span>`; }
+
+async function submitEntrega() {
+  const cliente = parseInt(el('f-cliente').value);
+  const pago = el('f-pago').value;
+  if (!cliente) { mostrarMsg('msg-entrega', 'text-danger', 'Selecciona el cliente.'); return; }
+
+  const items = [];
+  for (const linea of lineas()) {
+    const producto = parseInt(linea.querySelector('.l-producto').value);
+    const cantidad = parseInt(linea.querySelector('.l-cantidad').value);
+    const opcion = linea.querySelector('.l-producto').selectedOptions[0];
+    const nombreProd = opcion ? opcion.text : '';
+    if (!producto || !cantidad || cantidad < 1) {
+      mostrarMsg('msg-entrega', 'text-danger', 'Elige el producto y una cantidad de al menos 1 en cada línea.'); return;
+    }
+    const precio = precioDe(cliente, producto);
+    if (!precio) {
+      mostrarMsg('msg-entrega', 'text-danger', 'No hay precio para ' + escapar(nombreProd) + ' con este cliente. Avisa al administrador.'); return;
+    }
+    items.push({ linea: linea, data: {
+      planilla: PLANILLA_ID, cliente: cliente, producto: producto, cantidad: cantidad,
+      precio_unitario: precio, modalidad_pago: pago, devolucion: 0,
+      client_uuid: nuevoUuid(),
+      _etiqueta: el('f-cliente').selectedOptions[0].text + ' · ' + nombreProd + ' x' + cantidad,
+    }});
+  }
+
+  // Aviso suave (no bloquea): entregar más de lo que según la carga queda en el camión.
+  const pedido = {};
+  items.forEach(it => { pedido[it.data.producto] = (pedido[it.data.producto] || 0) + it.data.cantidad; });
+  const excesos = Object.keys(pedido).filter(pid => {
+    const f = CAMION[pid];
+    return !f || pedido[pid] > quedaDe(pid);
+  }).map(pid => {
+    const f = CAMION[pid];
+    return f && f.cargado ? f.nombre + ': te quedan ' + Math.max(quedaDe(pid), 0) + ' y vas a entregar ' + pedido[pid]
+                          : (nombreDe(pid) + ': no registraste carga de este producto');
+  });
+  const hayCarga = Object.keys(CAMION).some(k => CAMION[k].cargado > 0);
+  if (hayCarga && excesos.length && !confirm('Según tu carga:\n' + excesos.join('\n') + '\n\n¿Registrar de todos modos?')) return;
+
+  const boton = el('btn-guardar-entrega');
+  boton.disabled = true;
+  let ok = 0, pendientes = 0;
+  const rechazos = [];
+  for (const it of items) {
+    const r = await enviarRegistro('entregas', it.data);
+    if (r.estado === 'rechazo') rechazos.push(it.data._etiqueta + ': ' + r.texto);
+    else { it.linea.remove(); if (r.estado === 'ok') ok++; else pendientes++; }
+  }
+  boton.disabled = false;
+
+  if (rechazos.length) {
+    mostrarMsg('msg-entrega', 'text-danger', 'No se guardó: ' + escapar(rechazos.join(' | ')) +
+      (ok + pendientes ? ' (las demás líneas sí quedaron registradas)' : ''));
+  } else {
+    const aviso = pendientes
+      ? 'Guardado en el celular (' + pendientes + ' pendiente' + (pendientes > 1 ? 's' : '') + '). Se enviará al volver la señal.'
+      : '✓ Entrega guardada.';
+    mostrarMsg('msg-entrega', pendientes ? 'text-warning' : 'text-success', aviso);
+    if (!pendientes) setTimeout(() => { el('msg-entrega').innerHTML = ''; }, 2500);
+    el('f-cliente').value = '';
+  }
+  if (!lineas().length) agregarLinea();
+}
+
+async function submitAveria() {
+  const producto = parseInt(el('f-av-producto').value);
+  const cantidad = parseInt(el('f-av-cantidad').value);
+  if (!producto || !cantidad || cantidad < 1) {
+    mostrarMsg('msg-averia', 'text-danger', 'Elige el producto y una cantidad de al menos 1.'); return;
+  }
+  const nombreProd = el('f-av-producto').selectedOptions[0].text;
+  const data = {
+    planilla: PLANILLA_ID, producto: producto, cantidad: cantidad,
+    descripcion: el('f-av-desc').value.trim() || 'Rotura',
+    client_uuid: nuevoUuid(), _etiqueta: 'Avería ' + nombreProd + ' x' + cantidad,
+  };
+  const r = await enviarRegistro('averias', data);
+  if (r.estado === 'rechazo') { mostrarMsg('msg-averia', 'text-danger', 'No se guardó: ' + escapar(r.texto)); return; }
+  el('f-av-producto').value = ''; el('f-av-cantidad').value = '1'; el('f-av-desc').value = '';
+  if (r.estado === 'ok') {
+    mostrarMsg('msg-averia', 'text-success', '✓ Avería registrada.');
+    setTimeout(() => { el('msg-averia').innerHTML = ''; }, 2500);
+  } else {
+    mostrarMsg('msg-averia', 'text-warning', 'Sin señal: avería guardada en el celular. Se enviará sola al volver la señal.');
+  }
+}
+
+// No permitir enviar la planilla a validación con registros sin sincronizar:
+// una vez enviada ya no acepta más entregas ni averías y se perderían.
 function confirmarEnvioValidacion() {
-  const n = getPendientes().length;
+  const n = totalPendientes();
   if (n > 0) {
-    alert('Tienes ' + n + ' entrega(s) sin sincronizar. Espera a tener señal (el indicador debe decir "En línea" y el contador de pendientes desaparecer) antes de enviar la planilla.');
+    alert('Tienes ' + n + ' registro(s) sin sincronizar. Espera a tener señal (el indicador debe decir "En línea" y el contador rojo desaparecer) antes de enviar la planilla.');
     return false;
   }
   if (!navigator.onLine) {
@@ -381,12 +618,100 @@ function confirmarEnvioValidacion() {
   return confirm('¿Confirmas que la ruta está completa y deseas enviarla para validación?');
 }
 
-// Mostrar conteo de pendientes al cargar
-const pending = getPendientes();
-if (pending.length) {
-  document.getElementById('badge-pendientes').textContent = pending.length;
-  document.getElementById('badge-pendientes').style.display = '';
+// ── Control del camión ─────────────────────────────────────────────────────
+function nombreDe(pid) {
+  if (CAMION[pid]) return CAMION[pid].nombre;
+  const opt = el('f-av-producto').querySelector('option[value="' + pid + '"]');
+  return opt ? opt.textContent : 'Producto';
 }
+
+// Lo que ya está en cola (sin señal) por producto: { pid: {entregado, averiado} }
+function pendientesPorProducto() {
+  const r = {};
+  const sumar = (pid, campo, n) => {
+    r[pid] = r[pid] || { entregado: 0, averiado: 0 };
+    r[pid][campo] += n;
+  };
+  leerCola('entregas').forEach(i => sumar(i.producto, 'entregado', (i.cantidad || 0) - (i.devolucion || 0)));
+  leerCola('averias').forEach(i => sumar(i.producto, 'averiado', i.cantidad || 0));
+  return r;
+}
+
+// Un registro ya aceptado por el servidor pasa a formar parte de la base.
+function sumarABase(nombre, data) {
+  const pid = String(data.producto);
+  if (!CAMION[pid]) CAMION[pid] = { nombre: nombreDe(pid), cargado: 0, entregado: 0, averiado: 0 };
+  if (nombre === 'entregas') CAMION[pid].entregado += (data.cantidad || 0) - (data.devolucion || 0);
+  else CAMION[pid].averiado += data.cantidad || 0;
+  renderCamion();
+}
+
+function quedaDe(pid) {
+  const f = CAMION[pid];
+  if (!f) return 0;
+  const p = pendientesPorProducto()[pid] || { entregado: 0, averiado: 0 };
+  return f.cargado - f.entregado - f.averiado - p.entregado - p.averiado;
+}
+
+function renderCamion() {
+  const tabla = el('tabla-camion');
+  if (!tabla) return;
+  const pend = pendientesPorProducto();
+  const ids = Object.keys(CAMION).concat(Object.keys(pend).filter(k => !(k in CAMION)));
+  ids.forEach(pid => {
+    if (!CAMION[pid]) CAMION[pid] = { nombre: nombreDe(pid), cargado: 0, entregado: 0, averiado: 0 };
+    const f = CAMION[pid];
+    const p = pend[pid] || { entregado: 0, averiado: 0 };
+    let fila = tabla.querySelector('tr[data-pid="' + pid + '"]');
+    if (!fila) {
+      const vacia = el('fila-vacia-camion');
+      if (vacia) vacia.remove();
+      fila = document.createElement('tr');
+      fila.setAttribute('data-pid', pid);
+      fila.innerHTML = '<td class="small">' + escapar(f.nombre) + '</td><td class="text-end c-cargado"></td>' +
+        '<td class="text-end c-entregado"></td><td class="text-end c-averiado"></td><td class="text-end fw-bold c-queda"></td>';
+      tabla.querySelector('tbody').appendChild(fila);
+    }
+    const entregado = f.entregado + p.entregado;
+    const averiado = f.averiado + p.averiado;
+    const queda = f.cargado - entregado - averiado;
+    fila.querySelector('.c-cargado').textContent = f.cargado;
+    fila.querySelector('.c-entregado').textContent = entregado;
+    fila.querySelector('.c-averiado').textContent = averiado;
+    const q = fila.querySelector('.c-queda');
+    q.textContent = queda;
+    q.className = 'text-end fw-bold c-queda' + (queda < 0 ? ' text-danger' : '');
+
+    // Cierre de ruta: "debe quedar" y devolución sugerida (si la persona no la editó)
+    const cierre = document.querySelector('tr[data-pid-cierre="' + pid + '"]');
+    if (cierre) {
+      cierre.querySelector('.c-queda-cierre').textContent = queda;
+      const inp = cierre.querySelector('.i-devuelto');
+      if (inp && !inp.dataset.editado) inp.value = Math.max(queda, 0);
+    }
+  });
+}
+
+function mostrarDisponible() {
+  const pid = el('f-carga-producto').value;
+  const hint = el('hint-disponible');
+  if (!pid) { hint.textContent = ''; return; }
+  const n = DISPONIBLES[pid];
+  hint.innerHTML = n < 0
+    ? '<span class="text-danger">En planta figura ' + n + ' según la producción registrada: revisa que la producción esté al día.</span>'
+    : 'En planta hay ' + n + ' disponibles según la producción registrada.';
+}
+
+// ── Inicio ─────────────────────────────────────────────────────────────────
+if (el('f-cliente')) {            // solo existe con la planilla abierta
+  el('f-cliente').addEventListener('change', () => lineas().forEach(autoPrecioLinea));
+  el('f-carga-producto').addEventListener('change', mostrarDisponible);
+  document.querySelectorAll('.i-devuelto').forEach(i =>
+    i.addEventListener('input', () => { i.dataset.editado = '1'; }));
+  agregarLinea();
+}
+actualizarBadge();
+actualizarRed();
 {% endif %}
 </script>
 {% endblock %}

@@ -487,6 +487,13 @@ class CierreAnualViewsTests(TestCase):
         resp = self.client.get(reverse('reportes:cierres'))
         self.assertEqual(resp.status_code, 200)
 
+    def test_lista_con_anio_cerrado_nunca_reabierto_no_falla(self):
+        """Regresión: reabierto_por=None hacía fallar la plantilla con VariableDoesNotExist."""
+        CierreAnual.objects.create(anio=2025, cerrado_por=self.admin)
+        resp = self.client.get(reverse('reportes:cierres'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, '2025')
+
 
 class ReporteAnualViewTests(TestCase):
     def setUp(self):
@@ -564,7 +571,7 @@ class ExcepcionesDeBloqueoPorCierreAnualTests(TestCase):
         distribuidor = Usuario.objects.create_user(username='dist_excepciones_cierre', password='brisas2024', rol='DIST')
         producto = Producto.objects.create(nombre='Bolsa excepcion credito', presentacion=Producto.Presentacion.BOLSA_INDIVIDUAL)
         cliente = Cliente.objects.create(nombre='Cliente excepcion credito', categoria=Cliente.Categoria.REGULAR)
-        planilla = Planilla.objects.create(fecha=date(2025, 6, 1), distribuidor=distribuidor)
+        planilla = Planilla.objects.create(fecha=date(2025, 6, 1), distribuidor=distribuidor, estado=Planilla.Estado.VALIDADA)
         entrega = Entrega.objects.create(
             planilla=planilla, cliente=cliente, producto=producto,
             cantidad=10, precio_unitario=Decimal('3000.00'),
@@ -638,7 +645,9 @@ class ReporteAnualCreditosParcialesTests(TestCase):
         self.distribuidor = Usuario.objects.create_user(username='dist_creditos_parciales', password='brisas2024', rol='DIST')
         self.producto = Producto.objects.create(nombre='Bolsa creditos parciales', presentacion=Producto.Presentacion.BOLSA_INDIVIDUAL)
         self.cliente = Cliente.objects.create(nombre='Cliente creditos parciales', categoria=Cliente.Categoria.REGULAR)
-        self.planilla = Planilla.objects.create(fecha=date.today(), distribuidor=self.distribuidor)
+        self.planilla = Planilla.objects.create(
+            fecha=date.today(), distribuidor=self.distribuidor, estado=Planilla.Estado.VALIDADA,
+        )
 
     def _crear_entrega(self):
         return Entrega.objects.create(

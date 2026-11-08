@@ -615,3 +615,112 @@ class EntregaAPIRobustezTests(TestCase):
         self.assertEqual(r1.status_code, status.HTTP_201_CREATED)
         self.assertEqual(r2.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Entrega.objects.count(), 2)
+
+
+class PreciosPorCategoriaVistaTests(TestCase):
+    """El ADMIN (no solo el superusuario de /admin/) debe poder ajustar precios."""
+
+    def setUp(self):
+        self.admin = Usuario.objects.create_user(username='edwin', password='x', rol='ADMIN')
+        self.dist = Usuario.objects.create_user(username='nico', password='x', rol='DIST')
+        self.prod = Usuario.objects.create_user(username='wil', password='x', rol='PROD')
+        self.p1 = Producto.objects.create(nombre='Botellón', presentacion='BOT')
+        self.p2 = Producto.objects.create(nombre='Paca', presentacion='PAC')
+        self.url = reverse('distribucion:precios')
+
+    def test_admin_ve_la_pantalla_de_precios(self):
+        self.client.force_login(self.admin)
+        r = self.client.get(self.url)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Botellón')
+        self.assertContains(r, 'Paca')
+
+    def test_dist_y_prod_no_pueden_entrar(self):
+        for u in (self.dist, self.prod):
+            self.client.force_login(u)
+            self.assertNotEqual(self.client.get(self.url).status_code, 200)
+            self.assertNotEqual(self.client.post(self.url, {}).status_code, 200)
+
+    def test_admin_crea_y_actualiza_precios(self):
+        self.client.force_login(self.admin)
+        self.client.post(self.url, {
+            f'precio_{self.p1.pk}_REG': '3500', f'precio_{self.p1.pk}_MAY': '3000',
+            f'precio_{self.p2.pk}_REG': '', f'precio_{self.p2.pk}_MAY': '',
+        })
+        self.assertEqual(PrecioPorCategoria.objects.get(producto=self.p1, categoria='REG').precio, Decimal('3500'))
+        self.assertEqual(PrecioPorCategoria.objects.get(producto=self.p1, categoria='MAY').precio, Decimal('3000'))
+        self.assertFalse(PrecioPorCategoria.objects.filter(producto=self.p2).exists())
+        self.client.post(self.url, {f'precio_{self.p1.pk}_REG': '4000'})
+        self.assertEqual(PrecioPorCategoria.objects.get(producto=self.p1, categoria='REG').precio, Decimal('4000'))
+        # MAY no se envió: no se toca
+        self.assertEqual(PrecioPorCategoria.objects.get(producto=self.p1, categoria='MAY').precio, Decimal('3000'))
+
+    def test_precio_negativo_o_invalido_se_rechaza(self):
+        self.client.force_login(self.admin)
+        self.client.post(self.url, {f'precio_{self.p1.pk}_REG': '-5', f'precio_{self.p1.pk}_MAY': 'abc'})
+        self.assertEqual(PrecioPorCategoria.objects.count(), 0)
+
+    def test_cambiar_precio_no_altera_entregas_ya_registradas(self):
+        cliente = Cliente.objects.create(nombre='T', categoria='REG')
+        planilla = Planilla.objects.create(distribuidor=self.dist, fecha=date.today())
+        PrecioPorCategoria.objects.create(categoria='REG', producto=self.p1, precio=Decimal('3000'))
+        e = Entrega.objects.create(planilla=planilla, cliente=cliente, producto=self.p1, cantidad=1,
+                                   precio_unitario=Decimal('3000'), modalidad_pago='EFE')
+        self.client.force_login(self.admin)
+        self.client.post(self.url, {f'precio_{self.p1.pk}_REG': '9999'})
+        e.refresh_from_db()
+        self.assertEqual(e.precio_unitario, Decimal('3000'))
+
+
+class EtiquetaTransferenciaTests(TestCase):
+    def test_la_modalidad_NEQ_se_muestra_como_transferencia(self):
+        self.assertEqual(Entrega.ModalidadPago.NEQUI.label, 'Transferencia')
+        self.assertEqual(Entrega.ModalidadPago.NEQUI.value, 'NEQ')  # el código no cambia: no hay migración de datos
+
+
+class AveriaAPIRobustezTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.dist = Usuario.objects.create_user(username='nico', password='x', rol='DIST')
+        self.client.force_authenticate(self.dist)
+        self.producto = Producto.objects.create(nombre='Botellón', presentacion='BOT')
+        self.planilla = Planilla.objects.create(distribuidor=self.dist, fecha=date.today())
+        self.url = reverse('distribucion:api_averia_create')
+
+    def _d(self, **extra):
+        d = {'planilla': self.planilla.pk, 'producto': self.producto.pk, 'cantidad': 1, 'descripcion': 'rota'}
+        d.update(extra)
+        return d
+
+    def test_reenvio_con_el_mismo_client_uuid_no_duplica_la_averia(self):
+        uid = '0a1b2c3d-1111-4222-8333-444455556666'
+        r1 = self.client.post(self.url, self._d(client_uuid=uid))
+        r2 = self.client.post(self.url, self._d(client_uuid=uid))
+        self.assertEqual(r1.status_code, 201)
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(Averia.objects.count(), 1)
+
+    def test_cantidad_cero_se_rechaza(self):
+        self.assertEqual(self.client.post(self.url, self._d(cantidad=0)).status_code, 400)
+
+    def test_planilla_no_abierta_se_rechaza(self):
+        self.planilla.estado = Planilla.Estado.PENDIENTE_VALIDACION
+        self.planilla.save()
+        self.assertEqual(self.client.post(self.url, self._d()).status_code, 400)
+
+
+class CreditoMontoCeroTests(TestCase):
+    def test_entrega_totalmente_devuelta_no_genera_credito_de_cero(self):
+        client = APIClient()
+        dist = Usuario.objects.create_user(username='nico', password='x', rol='DIST')
+        client.force_authenticate(dist)
+        prod = Producto.objects.create(nombre='Botellón', presentacion='BOT')
+        PrecioPorCategoria.objects.create(categoria='REG', producto=prod, precio=Decimal('3000'))
+        cli = Cliente.objects.create(nombre='T', categoria='REG')
+        pl = Planilla.objects.create(distribuidor=dist, fecha=date.today())
+        r = client.post(reverse('distribucion:api_entrega_create'), {
+            'planilla': pl.pk, 'cliente': cli.pk, 'producto': prod.pk, 'cantidad': 2,
+            'precio_unitario': '3000', 'modalidad_pago': 'CRE', 'devolucion': 2,
+        })
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(Credito.objects.count(), 0)

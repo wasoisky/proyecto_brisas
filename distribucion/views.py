@@ -1,7 +1,9 @@
 import json
 from datetime import date
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
+from django.db import transaction
 from usuarios.mixins import RolRequiredMixin, SOLO_ADMIN, ADMIN_DIST
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
@@ -11,7 +13,23 @@ from django.views.generic import ListView, CreateView, UpdateView, DetailView
 from produccion.models import Producto
 from reportes.cierres import anio_cerrado
 from .forms import ClienteForm, PlanillaForm, EntregaForm, AveriaForm
-from .models import Cliente, PrecioPorCategoria, Planilla, Entrega, Averia, Credito
+from .conciliacion import disponible_en_planta, resumen_planilla
+from .models import Cliente, PrecioPorCategoria, Planilla, Entrega, Averia, Credito, CargaRuta
+
+
+def json_para_script(datos):
+    """JSON seguro para incrustar dentro de un <script> (con |safe en la plantilla).
+
+    json.dumps no escapa '<', '>' ni '&', así que un valor como «</script>» (p. ej. un
+    nombre de producto) cerraría el bloque de JavaScript. Se escapan como \\uXXXX, que
+    JSON.parse/JavaScript interpretan igual.
+    """
+    return (
+        json.dumps(datos)
+        .replace('<', '\\u003c')
+        .replace('>', '\\u003e')
+        .replace('&', '\\u0026')
+    )
 
 
 # ── Cliente ───────────────────────────────────────────────────────────────────
@@ -64,6 +82,61 @@ class ClienteUpdateView(RolRequiredMixin, UpdateView):
         return response
 
 
+# ── Precios por categoría (admin) ─────────────────────────────────────────────
+
+class PreciosView(RolRequiredMixin, View):
+    """El ADMIN ajusta el precio de cada producto por categoría (REG/MAY).
+
+    Cambiar un precio solo afecta entregas futuras: cada Entrega guarda su propio
+    precio_unitario. Un campo vacío no toca el precio existente.
+    """
+    roles_permitidos = SOLO_ADMIN
+
+    def _filas(self):
+        existentes = {
+            (p.producto_id, p.categoria): p.precio for p in PrecioPorCategoria.objects.all()
+        }
+        filas = []
+        for prod in Producto.objects.filter(activo=True).order_by('nombre'):
+            filas.append({
+                'producto': prod,
+                'reg': existentes.get((prod.pk, Cliente.Categoria.REGULAR)),
+                'may': existentes.get((prod.pk, Cliente.Categoria.MAYORISTA)),
+            })
+        return filas
+
+    def get(self, request):
+        return render(request, 'distribucion/precios.html', {'filas': self._filas()})
+
+    def post(self, request):
+        cambios, errores = [], []
+        for prod in Producto.objects.filter(activo=True):
+            for cat, etiqueta in Cliente.Categoria.choices:
+                crudo = (request.POST.get(f'precio_{prod.pk}_{cat}') or '').strip().replace(',', '.')
+                if crudo == '':
+                    continue
+                try:
+                    valor = Decimal(crudo)
+                    if not valor.is_finite() or valor < 0 or valor >= Decimal('100000000'):
+                        raise InvalidOperation
+                except InvalidOperation:
+                    errores.append(f'{prod.nombre} ({etiqueta}): precio inválido.')
+                    continue
+                cambios.append((prod, cat, valor.quantize(Decimal('0.01'))))
+
+        if errores:
+            messages.error(request, 'No se guardó nada. ' + ' '.join(errores))
+            return redirect('distribucion:precios')
+
+        with transaction.atomic():
+            for prod, cat, valor in cambios:
+                PrecioPorCategoria.objects.update_or_create(
+                    producto=prod, categoria=cat, defaults={'precio': valor},
+                )
+        messages.success(request, f'Precios guardados ({len(cambios)} actualizados).')
+        return redirect('distribucion:precios')
+
+
 # ── Planilla (admin) ──────────────────────────────────────────────────────────
 
 class PlanillaListView(RolRequiredMixin, ListView):
@@ -102,6 +175,7 @@ class PlanillaDetailView(RolRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx['total_ventas'] = sum(e.subtotal for e in self.object.entregas.all())
+        ctx['conciliacion'] = resumen_planilla(self.object)
         return ctx
 
 
@@ -168,6 +242,7 @@ class PlanillaRutaView(RolRequiredMixin, View):
 
         entregas = planilla.entregas.select_related('cliente', 'producto').all()
         averias  = planilla.averias.select_related('producto').all()
+        resumen = resumen_planilla(planilla)
 
         return {
             'planilla': planilla,
@@ -175,13 +250,79 @@ class PlanillaRutaView(RolRequiredMixin, View):
             'productos': productos,
             'entregas': entregas,
             'averias': averias,
-            'precios_json': json.dumps(precios),
+            'precios_json': json_para_script(precios),
             'hoy': date.today(),
             'modalidades': Entrega.ModalidadPago.choices,
             'total_ventas': sum(e.subtotal for e in entregas),
             'entrega_form': EntregaForm(),
             'averia_form': AveriaForm(),
+            'resumen': resumen,
+            'camion_json': json_para_script({
+                str(f['producto'].pk): {
+                    'nombre': f['producto'].nombre, 'cargado': f['cargado'],
+                    'entregado': f['entregado'], 'averiado': f['averiado'],
+                } for f in resumen
+            }),
+            'disponibles_json': json_para_script({
+                str(p.pk): disponible_en_planta(p) for p in productos
+            }),
         }
+
+    def _guardar_carga(self, request, planilla):
+        """Registra (o reemplaza) lo que se carga de un producto en el camión."""
+        producto = Producto.objects.filter(pk=request.POST.get('producto') or 0, activo=True).first()
+        try:
+            cantidad = int(request.POST.get('cantidad', ''))
+        except (TypeError, ValueError):
+            cantidad = 0
+        if not producto or cantidad < 1:
+            messages.error(request, 'Elige el producto y una cantidad de al menos 1.')
+            return
+        ya_salio = next(
+            (f['entregado'] + f['averiado'] for f in resumen_planilla(planilla) if f['producto'] == producto), 0,
+        )
+        if cantidad < ya_salio:
+            messages.error(
+                request,
+                f'{producto.nombre}: ya registraste {ya_salio} entre entregas y averías; '
+                f'la carga no puede ser menor.',
+            )
+            return
+        anterior = CargaRuta.objects.filter(planilla=planilla, producto=producto).first()
+        disponible = disponible_en_planta(producto) + (anterior.cantidad_cargada if anterior else 0)
+        CargaRuta.objects.update_or_create(
+            planilla=planilla, producto=producto, defaults={'cantidad_cargada': cantidad},
+        )
+        messages.success(request, f'Carga guardada: {producto.nombre} x{cantidad}.')
+        if cantidad > disponible:
+            messages.warning(
+                request,
+                f'Ojo: en planta hay {max(disponible, 0)} de {producto.nombre} según la producción '
+                f'registrada y estás cargando {cantidad}. Avisa si falta registrar producción.',
+            )
+
+    def _cerrar_ruta(self, request, planilla):
+        """Valida y guarda la devolución por producto. Sin cargas, no exige nada."""
+        cargas = list(planilla.cargas.select_related('producto'))
+        devueltos = {}
+        for c in cargas:
+            crudo = request.POST.get(f'devuelto_{c.producto_id}')
+            try:
+                valor = int(crudo)
+            except (TypeError, ValueError):
+                messages.error(request, f'Falta la devolución de {c.producto.nombre} (escribe 0 si no devolviste nada).')
+                return False
+            if valor < 0 or valor > c.cantidad_cargada:
+                messages.error(
+                    request,
+                    f'{c.producto.nombre}: la devolución debe estar entre 0 y lo que cargaste ({c.cantidad_cargada}).',
+                )
+                return False
+            devueltos[c.pk] = valor
+        for c in cargas:
+            c.cantidad_devuelta = devueltos[c.pk]
+            c.save(update_fields=['cantidad_devuelta'])
+        return True
 
     def get(self, request, pk):
         planilla = self._get_planilla(request, pk)
@@ -191,11 +332,11 @@ class PlanillaRutaView(RolRequiredMixin, View):
         planilla = self._get_planilla(request, pk)
         accion = request.POST.get('accion')
 
-        if accion in ('agregar_entrega', 'agregar_averia') and planilla.estado != Planilla.Estado.ABIERTA:
+        if accion in ('agregar_entrega', 'agregar_averia', 'guardar_carga') and planilla.estado != Planilla.Estado.ABIERTA:
             messages.error(request, 'Esta planilla ya no está abierta; no se pueden agregar entregas ni averías.')
             return redirect('distribucion:ruta_planilla', pk=pk)
 
-        if accion in ('agregar_entrega', 'agregar_averia') and anio_cerrado(planilla.fecha.year):
+        if accion in ('agregar_entrega', 'agregar_averia', 'guardar_carga') and anio_cerrado(planilla.fecha.year):
             messages.error(
                 request,
                 f'El año {planilla.fecha.year} ya está cerrado; no se pueden agregar '
@@ -229,8 +370,11 @@ class PlanillaRutaView(RolRequiredMixin, View):
                 averia.save()
                 messages.success(request, 'Avería registrada.')
 
+        elif accion == 'guardar_carga':
+            self._guardar_carga(request, planilla)
+
         elif accion == 'enviar_validacion':
-            if planilla.estado == Planilla.Estado.ABIERTA:
+            if planilla.estado == Planilla.Estado.ABIERTA and self._cerrar_ruta(request, planilla):
                 planilla.estado = Planilla.Estado.PENDIENTE_VALIDACION
                 planilla.save(update_fields=['estado'])
                 messages.success(request, 'Planilla enviada para validación.')
