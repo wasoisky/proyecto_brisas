@@ -64,6 +64,12 @@ class EntregaForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        cantidad = cleaned_data.get('cantidad')
+        devolucion = cleaned_data.get('devolucion') or 0
+        if cantidad is not None and cantidad < 1:
+            raise forms.ValidationError('La cantidad debe ser al menos 1.')
+        if cantidad is not None and devolucion > cantidad:
+            raise forms.ValidationError('La devolución no puede ser mayor que la cantidad entregada.')
         cliente = cleaned_data.get('cliente')
         producto = cleaned_data.get('producto')
         if cliente and producto:

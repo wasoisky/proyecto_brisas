@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Mi Ruta — Brisas de Pacandé{% endblock %}
 
 {% block content %}
@@ -165,7 +166,7 @@
 
     <!-- Enviar para validación -->
     <div class="mt-3">
-      <form method="post" action="{% url 'distribucion:ruta_planilla' planilla.pk %}" onsubmit="return confirm('¿Confirmas que la ruta está completa y deseas enviarla para validación?')">
+      <form method="post" action="{% url 'distribucion:ruta_planilla' planilla.pk %}" onsubmit="return confirmarEnvioValidacion()">
         {% csrf_token %}
         <input type="hidden" name="accion" value="enviar_validacion">
         <button type="submit" class="btn btn-success w-100">
@@ -189,11 +190,12 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script src="{% static 'js/axios.min.js' %}"></script>
 <script>
 // ── Configuración ──────────────────────────────────────────────────────────
 const CSRF = document.cookie.match(/csrftoken=([^;]+)/)?.[1] ?? '';
 axios.defaults.headers.common['X-CSRFToken'] = CSRF;
+axios.defaults.timeout = 15000;  // sin datos, la petición no debe quedar colgada
 
 {% if planilla %}
 const PLANILLA_ID = {{ planilla.pk }};
@@ -246,18 +248,52 @@ function guardarPendiente(data) {
   setPendientes(arr);
 }
 
+// Identificador único por entrega: si el envío se repite (respuesta perdida sin señal),
+// el servidor reconoce la entrega y no la duplica.
+function nuevoUuid() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+// Error de validación del servidor (4xx): reintentar no lo arregla.
+function esRechazo(e) {
+  return e.response && e.response.status >= 400 && e.response.status < 500
+         && e.response.status !== 408 && e.response.status !== 429
+         && e.response.status !== 401 && e.response.status !== 403;
+}
+function textoError(e) {
+  const d = e.response && e.response.data;
+  if (!d) return 'Error desconocido.';
+  if (typeof d === 'string') return d;
+  return Object.values(d).flat().join(' ');
+}
+
+let sincronizando = false;
 async function syncPendientes() {
+  if (sincronizando) return;
   const arr = getPendientes();
   if (!arr.length) return;
+  sincronizando = true;
   const fallidos = [];
+  const rechazados = [];
   for (const item of arr) {
     const { _tid, ...data } = item;
     try {
       const resp = await axios.post('/distribucion/api/entregas/', data);
       appendEntregaFila(resp.data);
-    } catch { fallidos.push(item); }
+    } catch (e) {
+      if (esRechazo(e)) rechazados.push(`${data._etiqueta || 'Entrega'}: ${textoError(e)}`);
+      else fallidos.push(item);   // sin señal / error temporal: se reintenta
+    }
   }
   setPendientes(fallidos);
+  sincronizando = false;
+  if (rechazados.length) {
+    alert('Estas entregas NO se pudieron registrar. Avísale al administrador:\n\n' + rechazados.join('\n'));
+  }
 }
 
 // ── Agregar entrega ────────────────────────────────────────────────────────
@@ -275,8 +311,10 @@ async function submitEntrega() {
     return;
   }
 
+  const etiqueta = `${document.getElementById('f-cliente').selectedOptions[0].text} x${cantidad}`;
   const data = { planilla: PLANILLA_ID, cliente, producto, cantidad,
-                 precio_unitario: precio, modalidad_pago: pago, devolucion };
+                 precio_unitario: precio, modalidad_pago: pago, devolucion,
+                 client_uuid: nuevoUuid(), _etiqueta: etiqueta };
 
   if (navigator.onLine) {
     try {
@@ -286,11 +324,17 @@ async function submitEntrega() {
       msg.innerHTML = '<span class="text-success">✓ Guardado.</span>';
       setTimeout(() => msg.innerHTML = '', 2000);
     } catch (e) {
-      guardarPendiente(data);
-      msg.innerHTML = '<span class="text-warning">Sin conexión. Guardado localmente.</span>';
+      if (esRechazo(e)) {
+        msg.innerHTML = '<span class="text-danger">No se guardó: ' + textoError(e) + '</span>';
+      } else {
+        guardarPendiente(data);
+        msg.innerHTML = '<span class="text-warning">Sin conexión. Guardado localmente.</span>';
+        resetFormEntrega();
+      }
     }
   } else {
     guardarPendiente(data);
+    resetFormEntrega();
     msg.innerHTML = '<span class="text-warning">Sin señal. Se sincronizará automáticamente.</span>';
   }
 }
@@ -320,6 +364,21 @@ function resetFormEntrega() {
     if (el) el.value = id === 'f-devolucion' ? '0' : '';
   });
   document.getElementById('f-cantidad').value = '1';
+}
+
+// No permitir enviar la planilla a validación con entregas sin sincronizar:
+// una vez enviada ya no acepta más entregas y se perderían.
+function confirmarEnvioValidacion() {
+  const n = getPendientes().length;
+  if (n > 0) {
+    alert('Tienes ' + n + ' entrega(s) sin sincronizar. Espera a tener señal (el indicador debe decir "En línea" y el contador de pendientes desaparecer) antes de enviar la planilla.');
+    return false;
+  }
+  if (!navigator.onLine) {
+    alert('Sin señal: no se puede enviar la planilla ahora. Inténtalo cuando tengas conexión.');
+    return false;
+  }
+  return confirm('¿Confirmas que la ruta está completa y deseas enviarla para validación?');
 }
 
 // Mostrar conteo de pendientes al cargar

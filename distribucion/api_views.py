@@ -1,5 +1,6 @@
 from datetime import date
 
+from django.core.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -54,6 +55,19 @@ class EntregaCreateAPIView(APIView):
     """Crea una entrega. Crea Crédito automáticamente si la modalidad es Crédito."""
 
     def post(self, request):
+        # Reintento de una entrega ya guardada (la respuesta se perdió sin señal):
+        # devolver la existente en vez de duplicarla junto con su crédito.
+        client_uuid = request.data.get('client_uuid')
+        if client_uuid:
+            try:
+                existente = Entrega.objects.select_related('planilla').filter(client_uuid=client_uuid).first()
+            except (ValueError, ValidationError):
+                existente = None
+            if existente and (
+                request.user.is_superuser or getattr(request.user, 'rol', None) == 'ADMIN'
+                or existente.planilla.distribuidor_id == request.user.pk
+            ):
+                return Response(EntregaSerializer(existente).data, status=status.HTTP_200_OK)
         serializer = EntregaSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             entrega = serializer.save()

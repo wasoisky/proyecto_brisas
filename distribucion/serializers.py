@@ -44,6 +44,7 @@ class EntregaSerializer(serializers.ModelSerializer):
     subtotal = serializers.SerializerMethodField()
     cliente_nombre = serializers.CharField(source='cliente.nombre', read_only=True)
     producto_nombre = serializers.CharField(source='producto.nombre', read_only=True)
+    client_uuid = serializers.UUIDField(required=False, allow_null=True)
 
     class Meta:
         model = Entrega
@@ -51,7 +52,7 @@ class EntregaSerializer(serializers.ModelSerializer):
             'id', 'planilla', 'cliente', 'cliente_nombre',
             'producto', 'producto_nombre', 'cantidad',
             'precio_unitario', 'modalidad_pago', 'devolucion',
-            'subtotal', 'creado_en',
+            'subtotal', 'creado_en', 'client_uuid',
         ]
         read_only_fields = ['id', 'creado_en']
 
@@ -68,6 +69,18 @@ class EntregaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 f'El año {planilla.fecha.year} ya está cerrado; no se pueden registrar entregas.'
             )
+
+        if planilla and planilla.estado != Planilla.Estado.ABIERTA:
+            raise serializers.ValidationError(
+                'La planilla ya no está abierta; no se pueden registrar más entregas.'
+            )
+
+        cantidad = data.get('cantidad')
+        devolucion = data.get('devolucion') or 0
+        if cantidad is not None and cantidad < 1:
+            raise serializers.ValidationError('La cantidad debe ser al menos 1.')
+        if cantidad is not None and devolucion > cantidad:
+            raise serializers.ValidationError('La devolución no puede ser mayor que la cantidad entregada.')
 
         cliente = data.get('cliente')
         producto = data.get('producto')

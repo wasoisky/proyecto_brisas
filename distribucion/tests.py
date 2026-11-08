@@ -555,3 +555,63 @@ class CreacionDePlanillaBloqueadaPorAnioCerradoTests(TestCase):
         self.assertFalse(
             Planilla.objects.filter(distribuidor=self.distribuidor, fecha=date.today()).exists()
         )
+
+
+class EntregaAPIRobustezTests(TestCase):
+    """Auditoría previa a la entrega: validaciones de datos y sincronización
+    offline segura (reintentos no deben duplicar entregas ni créditos)."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.dist = Usuario.objects.create_user(username='nico', password='brisas2024', rol='DIST')
+        self.client.force_authenticate(self.dist)
+        self.producto = Producto.objects.create(nombre='Botellón', presentacion='BOT')
+        PrecioPorCategoria.objects.create(
+            categoria=Cliente.Categoria.REGULAR, producto=self.producto, precio=Decimal('3000.00')
+        )
+        self.cliente = Cliente.objects.create(nombre='Tienda', categoria=Cliente.Categoria.REGULAR)
+        self.planilla = Planilla.objects.create(distribuidor=self.dist, fecha=date.today())
+        self.url = reverse('distribucion:api_entrega_create')
+
+    def _datos(self, **extra):
+        datos = {
+            'planilla': self.planilla.pk, 'cliente': self.cliente.pk, 'producto': self.producto.pk,
+            'cantidad': 4, 'precio_unitario': '3000.00',
+            'modalidad_pago': Entrega.ModalidadPago.CREDITO, 'devolucion': 0,
+        }
+        datos.update(extra)
+        return datos
+
+    def test_devolucion_mayor_que_cantidad_es_rechazada(self):
+        resp = self.client.post(self.url, self._datos(cantidad=2, devolucion=5))
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Entrega.objects.count(), 0)
+
+    def test_cantidad_cero_es_rechazada(self):
+        resp = self.client.post(self.url, self._datos(cantidad=0))
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Entrega.objects.count(), 0)
+
+    def test_no_se_pueden_agregar_entregas_a_planilla_validada_por_la_api(self):
+        self.planilla.estado = Planilla.Estado.VALIDADA
+        self.planilla.save()
+        resp = self.client.post(self.url, self._datos())
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Entrega.objects.count(), 0)
+
+    def test_reenvio_con_el_mismo_client_uuid_no_duplica_entrega_ni_credito(self):
+        uid = 'b5f1a2c0-8e1d-4c3a-9a55-3f0f1c2d7e11'
+        r1 = self.client.post(self.url, self._datos(client_uuid=uid))
+        r2 = self.client.post(self.url, self._datos(client_uuid=uid))
+        self.assertEqual(r1.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(r2.status_code, status.HTTP_200_OK)
+        self.assertEqual(r1.data['id'], r2.data['id'])
+        self.assertEqual(Entrega.objects.count(), 1)
+        self.assertEqual(Credito.objects.count(), 1)
+
+    def test_entregas_sin_client_uuid_siguen_funcionando(self):
+        r1 = self.client.post(self.url, self._datos())
+        r2 = self.client.post(self.url, self._datos())
+        self.assertEqual(r1.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(r2.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Entrega.objects.count(), 2)

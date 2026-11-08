@@ -91,6 +91,9 @@ class Entrega(models.Model):
     modalidad_pago = models.CharField(max_length=3, choices=ModalidadPago.choices)
     devolucion = models.PositiveIntegerField(default=0)
     creado_en = models.DateTimeField(auto_now_add=True)
+    # Generado por el celular al capturar la entrega: permite reintentar el envío
+    # sin duplicar la entrega (ni su crédito) si la respuesta se perdió por falta de señal.
+    client_uuid = models.UUIDField(null=True, blank=True, unique=True, editable=False)
 
     class Meta:
         verbose_name = 'Entrega'
